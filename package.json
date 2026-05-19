@@ -1,0 +1,45 @@
+{
+  "name": "mioku-plugin-mc",
+  "version": "1.0.0",
+  "description": "Minecraft与QQ群消息互通插件，支持服务器状态监控与RCON命令",
+  "main": "index.ts",
+  "keywords": [
+    "mioku"
+  ],
+  "mioku": {
+    "services": [
+      "config"
+    ],
+    "help": {
+      "title": "Minecraft",
+      "description": "Minecraft服务器与QQ群消息互通插件，支持服务器状态监控与RCON命令",
+      "commands": [
+        {
+          "cmd": "/mc 状态",
+          "desc": "查看所有已配置服务器的WebSocket连接状态，包括连接中、已断开等",
+          "role": "master"
+        },
+        {
+          "cmd": "/mc 开启同步",
+          "desc": "开启指定服务器的群聊消息同步功能，开启后该服务器可接收和发送群聊消息",
+          "usage": "/mc 开启同步 <服务器名称>",
+          "role": "master"
+        },
+        {
+          "cmd": "/mc 关闭同步",
+          "desc": "关闭指定服务器的群聊消息同步功能，关闭后该服务器不再接收和发送群聊消息",
+          "usage": "/mc 关闭同步 <服务器名称>",
+          "role": "master"
+        },
+        {
+          "cmd": "/mc 重连",
+          "desc": "断开并重新建立所有服务器的WebSocket连接，用于连接异常时手动恢复",
+          "role": "master"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "@cikeyqi/queqiao-node-sdk": "^0.1.3"
+  }
+}

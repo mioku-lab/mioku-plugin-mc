@@ -1,5 +1,5 @@
 import { definePlugin, type MiokiContext } from "mioki";
-import type { ConfigService } from "../../src/services/config/tpyes";
+import type { ConfigService } from "mioku";
 import { createConfigHandler } from "./utils/config-handler";
 import { createServerManager } from "./utils/server-manager";
 import { parseMcCommand } from "./utils/command-router";

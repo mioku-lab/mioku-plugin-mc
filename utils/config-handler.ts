@@ -1,4 +1,4 @@
-import type { ConfigService } from "../../../src/services/config/tpyes";
+import type { ConfigService } from "mioku";
 import { DEFAULT_CONFIG, normalizeConfig, type McConfig } from "../types";
 
 export function createConfigHandler(configService: ConfigService | undefined) {

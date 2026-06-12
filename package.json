@@ -1,6 +1,6 @@
 {
   "name": "mioku-plugin-mc",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Minecraft与QQ群消息互通插件，支持服务器状态监控与RCON命令",
   "main": "index.ts",
   "type": "module",
@@ -14,6 +14,24 @@
   "mioku": {
     "services": [
       "config"
+    ],
+    "accessHooks": [
+      {
+        "id": "/mc 状态",
+        "match": "/^\\/mc\\s*状态/"
+      },
+      {
+        "id": "/mc 开启同步",
+        "match": "/^\\/mc\\s*开启同步/"
+      },
+      {
+        "id": "/mc 关闭同步",
+        "match": "/^\\/mc\\s*关闭同步/"
+      },
+      {
+        "id": "/mc 重连",
+        "match": "/^\\/mc\\s*重连/"
+      }
     ],
     "help": {
       "title": "Minecraft",

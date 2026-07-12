@@ -144,13 +144,8 @@ fields:
       - key: host
         label: 地址
         type: text
-        description: 服务器 IP
-        placeholder: 127.0.0.1
-      - key: port
-        label: 端口
-        type: number
-        description: 服务器端口
-        placeholder: 25565
+        description: 服务器地址。可写 host[:port]（如 play.example.com:25565），省略端口时会自动尝试 _minecraft._tcp.<host> 的 SRV 解析，失败则默认 25565
+        placeholder: play.example.com
       - key: version
         label: 版本
         type: text

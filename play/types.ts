@@ -2,7 +2,6 @@ export interface PlayServerConfig {
   id: string;
   name: string;
   host: string;
-  port: number;
   version?: string;
   username: string;
   auth?: "offline" | "microsoft";
@@ -98,7 +97,6 @@ function normalizeServer(raw: any): PlayServerConfig {
     id: String(raw?.id ?? "").trim(),
     name: String(raw?.name ?? raw?.id ?? "").trim(),
     host: String(raw?.host ?? "").trim(),
-    port: asNumber(raw?.port, 25565),
     version: raw?.version ? String(raw.version).trim() : undefined,
     username: String(raw?.username ?? "").trim(),
     auth,

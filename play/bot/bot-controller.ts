@@ -3,6 +3,7 @@ import { pathfinder, Movements } from "mineflayer-pathfinder";
 import { plugin as pvpPlugin } from "mineflayer-pvp";
 import mcData from "minecraft-data";
 import type { PlayServerConfig } from "../types";
+import { resolveMinecraftEndpoint } from "../util/endpoint";
 import { PlayBus, type GameChatLine } from "./play-bus";
 
 export interface BotControllerOptions {
@@ -24,10 +25,11 @@ export class BotController {
     this.log = opts.log;
   }
 
-  connect(): Promise<void> {
+  async connect(): Promise<void> {
+    const { host, port } = await resolveMinecraftEndpoint(this.server.host);
     const bot = createBot({
-      host: this.server.host,
-      port: this.server.port,
+      host,
+      port,
       username: this.server.username,
       auth: this.server.auth ?? "offline",
       password: this.server.password,

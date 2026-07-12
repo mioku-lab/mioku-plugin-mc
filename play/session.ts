@@ -53,7 +53,7 @@ export class PlaySession {
 
   async start(): Promise<void> {
     const ctx = this.pluginCtx;
-    ctx.ctx.logger.info(`[MC/play] 正在进入服务器 ${this.server.name} (${this.server.host}:${this.server.port})`);
+    ctx.ctx.logger.info(`[MC/play] 正在进入服务器 ${this.server.name} (${this.server.host})`);
 
     this.bus.on("chat", (line) => this.history.pushGame(line));
     this.bus.on("end", (reason) => this.onUnexpectedEnd(`连接结束: ${reason}`));

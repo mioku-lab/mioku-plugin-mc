@@ -1,0 +1,49 @@
+import { SurvivalBehavior, type BehaviorContext } from "../base-behavior";
+
+const FALL_VELOCITY_THRESHOLD = -0.7;
+
+export class MlgFallBehavior extends SurvivalBehavior {
+  readonly name = "mlg_fall";
+  private placed = false;
+
+  shouldActivate(ctx: BehaviorContext): boolean {
+    const bot = ctx.bot;
+    const vy = bot.entity?.velocity?.y;
+    if (vy === undefined || vy >= FALL_VELOCITY_THRESHOLD) return false;
+    const head = bot.entity?.position;
+    if (!head) return false;
+    const below = bot.blockAt(head.offset(0, -2, 0));
+    const n = String(below?.name ?? "").toLowerCase();
+    return n !== "water" && n !== "lava";
+  }
+
+  onTick(ctx: BehaviorContext): void {
+    if (this.placed) return;
+    const bot = ctx.bot;
+    const bucket = bot.inventory
+      ?.items?.()
+      ?.find((i: any) => i.name === "water_bucket");
+    if (!bucket) return;
+    this.placed = true;
+    void (async () => {
+      try {
+        await bot.equip(bucket, "hand");
+        bot.look(0, Math.PI / 2, true);
+        bot.activateItem();
+        setTimeout(() => {
+          try {
+            bot.activateItem();
+          } catch {
+            // ignore
+          }
+        }, 400);
+      } catch {
+        this.placed = false;
+      }
+    })();
+  }
+
+  onStop(): void {
+    this.placed = false;
+  }
+}

@@ -125,6 +125,130 @@ fields:
         label: RCON 密码
         type: secret
         description: RCON 密码
+
+  - key: play.servers
+    label: 游玩服务器列表
+    type: array
+    description: bot 可加入游玩的 Minecraft 服务器（原版/leaves）
+    itemFields:
+      - key: id
+        label: 服务器 ID
+        type: text
+        description: 唯一标识，AI 工具按此选择服务器
+        placeholder: survival
+      - key: name
+        label: 显示名称
+        type: text
+        description: 服务器显示名
+        placeholder: 生存服
+      - key: host
+        label: 地址
+        type: text
+        description: 服务器 IP
+        placeholder: 127.0.0.1
+      - key: port
+        label: 端口
+        type: number
+        description: 服务器端口
+        placeholder: 25565
+      - key: version
+        label: 版本
+        type: text
+        description: Minecraft 版本，留空自动协商
+        placeholder: "1.20.4"
+      - key: username
+        label: 假人名称
+        type: text
+        description: bot 加入服务器使用的名字
+        placeholder: MikuBot
+      - key: auth
+        label: 认证方式
+        type: text
+        description: offline 或 microsoft，默认 offline
+        placeholder: offline
+      - key: password
+        label: 认证密码
+        type: secret
+        description: microsoft 认证时使用
+      - key: maxPlayMs
+        label: 最长游玩时长(ms)
+        type: number
+        description: 单次游玩最长时长，到点自动下线
+        placeholder: 1800000
+
+  - key: play.groups
+    label: 群聊绑定
+    type: array
+    description: 配置哪些群允许触发 bot 游玩及可选服务器
+    itemFields:
+      - key: groupId
+        label: 群号
+        type: text
+        description: QQ 群号
+        placeholder: "518680610"
+      - key: botSelfId
+        label: 机器人账号
+        type: text
+        description: 该群使用的 bot QQ 号
+      - key: allowedServerIds
+        label: 允许的服务器
+        type: text
+        description: 允许该群触发的服务器 ID，每行一个
+
+  - key: play.toolPermission
+    label: 工具权限
+    type: text
+    description: 谁可触发 bot 进出服（owner/admin/member，需重启生效）
+    placeholder: admin
+  - key: play.mainLoopMinIntervalMs
+    label: 主模型最小间隔(ms)
+    type: number
+    description: 主模型两次调用最小间隔
+    placeholder: 15000
+  - key: play.mainLoopIdleIntervalMs
+    label: 空闲唤醒间隔(ms)
+    type: number
+    description: 无事件时主模型定时唤醒间隔
+    placeholder: 60000
+  - key: play.behaviorTickIntervalMs
+    label: 行为引擎 tick(ms)
+    type: number
+    description: 行为引擎 tick 间隔
+    placeholder: 200
+  - key: play.gameChatHistoryLines
+    label: 游戏聊天窗口
+    type: number
+    description: 喂给主模型的游戏聊天行数
+    placeholder: 40
+  - key: play.qqHistoryLines
+    label: QQ 聊天窗口
+    type: number
+    description: 喂给主模型的 QQ 群消息行数
+    placeholder: 20
+  - key: play.maxPlayBudgetWarnRatio
+    label: 预算提醒比例
+    type: number
+    description: 到该比例时提醒主模型收尾
+    placeholder: 0.85
+  - key: play.goodbyeTimeoutMs
+    label: 告别超时(ms)
+    type: number
+    description: 生成告别语的超时时间
+    placeholder: 8000
+  - key: play.qqSendPerMinute
+    label: QQ 每分钟上限
+    type: number
+    description: bot 向 QQ 群发送消息的每分钟上限
+    placeholder: 3
+  - key: play.gameChatMinIntervalMs
+    label: 游戏发言间隔(ms)
+    type: number
+    description: bot 游戏内连续发言最小间隔
+    placeholder: 1500
+  - key: play.debug.enabled
+    label: 调试模式
+    type: switch
+    description: 开启后主人可用 /join /say /motion 等命令手动测试行为（不启动 AI 循环），详见 play/debug/README.md
 ---
 
 ```mioku-fields
@@ -136,4 +260,17 @@ keys:
   - base.reverse_ws_path
   - base.reverse_ws_password
   - base.servers
+  - play.servers
+  - play.groups
+  - play.toolPermission
+  - play.mainLoopMinIntervalMs
+  - play.mainLoopIdleIntervalMs
+  - play.behaviorTickIntervalMs
+  - play.gameChatHistoryLines
+  - play.qqHistoryLines
+  - play.maxPlayBudgetWarnRatio
+  - play.goodbyeTimeoutMs
+  - play.qqSendPerMinute
+  - play.gameChatMinIntervalMs
+  - play.debug.enabled
 ```

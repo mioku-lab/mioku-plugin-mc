@@ -1,6 +1,10 @@
 import { definePlugin, type MiokiContext } from "mioki";
-import type { ConfigService } from "mioku";
+import type { AIService, ConfigService } from "mioku";
 import { createConfigHandler } from "./utils/config-handler";
+import { createPlayConfigHandler } from "./play/config";
+import { createPlayManager } from "./play";
+import { setMcPlayState } from "./play/runtime";
+import { handleDebugCommand } from "./play/debug/commands";
 import { createServerManager } from "./utils/server-manager";
 import { parseMcCommand } from "./utils/command-router";
 import { handleStatus } from "./handlers/status";
@@ -28,6 +32,21 @@ export default definePlugin({
 
     const config = configHandler.getConfig();
 
+    const playConfigHandler = createPlayConfigHandler(configService);
+    await playConfigHandler.register();
+
+    const aiService = ctx.services?.ai as AIService | undefined;
+
+    const playManager = createPlayManager({
+      ctx,
+      aiService,
+      configService,
+      playConfigHandler,
+      syncConfigHandler: configHandler,
+    });
+    setMcPlayState({ playManager });
+    ctx.logger.info("Minecraft 游玩子系统已就绪");
+
     const serverManager = createServerManager(
       (serverName, status) => {
         ctx.logger.info(`[MC] 服务器 ${serverName} 状态: ${status}`);
@@ -44,10 +63,26 @@ export default definePlugin({
 
     ctx.handle("message", async (event: any) => {
       const text = ctx.text(event).trim();
+
+      if (event.group_id) {
+        const reply = await handleDebugCommand({
+          text,
+          isOwner: ctx.isOwner?.(event) ?? false,
+          debugEnabled: playConfigHandler.getConfig().debug.enabled,
+          playManager,
+          groupId: Number(event.group_id),
+        });
+        if (reply !== null) {
+          await event.reply(reply);
+          return;
+        }
+      }
+
       const parsed = parseMcCommand(text);
 
       if (!parsed || parsed.action === "") {
         if (event.group_id) {
+          playManager.onQqMessage(event);
           await forwardToMc(ctx, event, config, configHandler, serverManager);
         }
         return;
@@ -93,8 +128,9 @@ export default definePlugin({
 
     ctx.logger.info("Minecraft插件加载成功");
 
-    return () => {
+    return async () => {
       serverManager.stopServers();
+      await playManager.dispose();
       ctx.logger.info("Minecraft插件已卸载");
     };
   },

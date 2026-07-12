@@ -1,0 +1,58 @@
+import { Behavior, type BehaviorContext } from "../base-behavior";
+import { goals } from "mineflayer-pathfinder";
+import { equipToolFor } from "../../util/inventory";
+
+const RESOURCE_MATCHERS: Record<string, (name: string) => boolean> = {
+  wood: (n) => /_log$/.test(n),
+  stone: (n) =>
+    /^(stone|cobblestone|andesite|diorite|granite|deepslate|tuff|basalt|calcite|dripstone_block)/.test(
+      n,
+    ),
+  coal: (n) => /coal_ore/.test(n),
+  iron: (n) => /iron_ore/.test(n),
+};
+
+export class GatherResourceBehavior extends Behavior {
+  readonly name = "gather";
+  private readonly resource: string;
+  private mining = false;
+
+  constructor(params: Record<string, string>) {
+    super();
+    this.resource = params.resource ?? "wood";
+  }
+
+  onTick(ctx: BehaviorContext): void {
+    if (this.mining) return;
+    const matcher = RESOURCE_MATCHERS[this.resource];
+    if (!matcher) return;
+    const block = ctx.bot.findBlock({
+      matching: (b: any) => !!b && matcher(b.name),
+      maxDistance: 32,
+    } as any);
+    if (!block) return;
+
+    this.mining = true;
+    void (async () => {
+      try {
+        await equipToolFor(ctx.bot, this.resource);
+        await ctx.bot.pathfinder.goto(
+          new goals.GoalGetToBlock(block.position.x, block.position.y, block.position.z),
+        );
+        await ctx.bot.dig(block);
+      } catch (e) {
+        ctx.log(`gather 失败: ${e}`);
+      } finally {
+        this.mining = false;
+      }
+    })();
+  }
+
+  onStop(ctx: BehaviorContext): void {
+    try {
+      ctx.bot.pathfinder.stop();
+    } catch {
+      // ignore
+    }
+  }
+}

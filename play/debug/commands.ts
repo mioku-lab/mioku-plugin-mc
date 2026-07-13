@@ -44,9 +44,6 @@ const MOVEMENT_HELP: Record<string, string> = {
   follow: "跟随玩家。参数: target=<玩家名> [distance=<格, 默认3>]",
   gather: "采集资源。参数: resource=<wood|stone|coal|iron>",
   farm_mobs: "猎杀附近被动生物获取掉落物",
-  guard: "守点。参数: [x=<int> y=<int> z=<int>] [radius=<格, 默认8>]，不传坐标守当前位置",
-  socialize: "走向最近玩家并打招呼",
-  flee: "逃离到远离威胁的位置",
   explore: "随机探索加载新区块",
 };
 

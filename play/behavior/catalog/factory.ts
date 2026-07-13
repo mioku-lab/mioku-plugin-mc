@@ -4,9 +4,6 @@ import { IdleWanderBehavior } from "./idle";
 import { FollowPlayerBehavior } from "./follow";
 import { GatherResourceBehavior } from "./gather";
 import { FarmMobsBehavior } from "./farm-mobs";
-import { GuardPositionBehavior } from "./guard";
-import { SocializeBehavior } from "./socialize";
-import { FleeBehavior } from "./flee";
 import { ExploreBehavior } from "./explore";
 
 const MOVEMENT_FACTORIES: Record<string, () => Behavior> = {
@@ -14,9 +11,6 @@ const MOVEMENT_FACTORIES: Record<string, () => Behavior> = {
   follow: () => new FollowPlayerBehavior(),
   gather: () => new GatherResourceBehavior(),
   farm_mobs: () => new FarmMobsBehavior(),
-  guard: () => new GuardPositionBehavior(),
-  socialize: () => new SocializeBehavior(),
-  flee: () => new FleeBehavior(),
   explore: () => new ExploreBehavior(),
 };
 

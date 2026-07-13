@@ -95,7 +95,6 @@ export class BotController {
       this.bus.emit("spawn");
       if (!this.joinedOnce) {
         this.joinedOnce = true;
-        this.attachStuckJumpMonitor(bot);
         this.scheduleJoinCommands();
       }
     });
@@ -152,8 +151,6 @@ export class BotController {
     bot.on("respawn", () => this.bus.emit("respawn"));
     bot.on("entityHurt", (entity: any) => this.bus.emit("entityHurt", entity));
     bot.on("physicTick", () => this.bus.emit("physicTick"));
-    bot.on("path_reset", (reason: any) => this.log(`pathfinder 重算路径: ${reason}`));
-    bot.on("goal_reached", () => this.log(`pathfinder 到达目标`));
     bot.on("kicked", (reason: string) =>
       this.bus.emit("kicked", String(reason || "")),
     );
@@ -164,69 +161,6 @@ export class BotController {
       this.log(`bot 错误: ${err}`);
       this.bus.emit("error", err);
     });
-  }
-
-  private stuckTimer?: NodeJS.Timeout;
-  private lastStuckPos: { x: number; y: number; z: number } | null = null;
-  private lastJumpLog = 0;
-
-  private attachStuckJumpMonitor(bot: Bot): void {
-    if (typeof (bot as any).setControlState !== "function") {
-      this.log("setControlState 不可用，卡住跳跃监控未启用");
-      return;
-    }
-    const origSetControl = bot.setControlState.bind(bot);
-    (bot as any).setControlState = (control: string, state: boolean) => {
-      if (control === "jump" && state) {
-        const now = Date.now();
-        if (now - this.lastJumpLog > 3_000) {
-          this.lastJumpLog = now;
-          this.log(`[diag] pathfinder 触发跳跃`);
-        }
-      }
-      return origSetControl(control as any, state);
-    };
-
-    this.stuckTimer = setInterval(() => {
-      if (!bot || !bot.entity?.position) return;
-      if (typeof (bot as any).setControlState !== "function") return;
-      const pathfinder: any = (bot as any).pathfinder;
-      const moving = pathfinder?.isMoving?.();
-      const pos = bot.entity.position;
-      if (!moving) {
-        this.lastStuckPos = null;
-        return;
-      }
-      if (this.lastStuckPos) {
-        const moved = Math.hypot(
-          pos.x - this.lastStuckPos.x,
-          pos.y - this.lastStuckPos.y,
-          pos.z - this.lastStuckPos.z,
-        );
-        if (moved < 0.3) {
-          try {
-            bot.setControlState("jump", true);
-            setTimeout(() => {
-              try {
-                bot.setControlState("jump", false);
-              } catch {
-                // ignore
-              }
-            }, 350);
-          } catch {
-            // ignore
-          }
-        }
-      }
-      this.lastStuckPos = { x: pos.x, y: pos.y, z: pos.z };
-    }, 800);
-  }
-
-  private stopStuckMonitor(): void {
-    if (this.stuckTimer) {
-      clearInterval(this.stuckTimer);
-      this.stuckTimer = undefined;
-    }
   }
 
   private emitChat(line: GameChatLine): void {
@@ -301,7 +235,6 @@ export class BotController {
   async disconnect(reason = "leaving"): Promise<void> {
     const bot = this.bot;
     if (!bot) return;
-    this.stopStuckMonitor();
     this.bot = null;
     try {
       bot.quit(reason);

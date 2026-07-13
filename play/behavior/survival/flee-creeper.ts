@@ -1,13 +1,14 @@
-import { SurvivalBehavior, type BehaviorContext } from "../base-behavior";
+import { Behavior, type BehaviorContext } from "../base-behavior";
 import { nearestCreeper, entityDistance } from "../../util/entities";
 
 const CREEPER_FLEE_RADIUS = 6;
 const SAFE_DISTANCE = 8;
 
-export class FleeCreeperBehavior extends SurvivalBehavior {
+export class FleeCreeperBehavior extends Behavior {
   readonly name = "flee_creeper";
+  readonly category = "survival" as const;
 
-  shouldActivate(ctx: BehaviorContext): boolean {
+  isActive(ctx: BehaviorContext): boolean {
     return nearestCreeper(ctx.bot, CREEPER_FLEE_RADIUS) !== null;
   }
 

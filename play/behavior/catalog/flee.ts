@@ -6,6 +6,7 @@ const FLEE_DISTANCE = 16;
 
 export class FleeBehavior extends Behavior {
   readonly name = "flee";
+  readonly category = "movement" as const;
   private fleeing = false;
 
   onTick(ctx: BehaviorContext): void {

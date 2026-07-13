@@ -189,12 +189,38 @@ export class PlaySession {
     return true;
   }
 
-  setBehavior(spec: BehaviorSpec): void {
-    this.engine?.setUserBehavior(spec);
+  setMovement(spec: BehaviorSpec): void {
+    this.engine?.setMovement(spec);
   }
 
-  stopBehavior(): void {
-    this.engine?.setUserBehavior({ behavior: "idle", params: {} });
+  stopMovement(): void {
+    this.engine?.stopMovement();
+  }
+
+  toggleOverlay(name: string, enabled: boolean, params?: Record<string, string>): boolean {
+    return this.engine?.toggleOverlay(name, enabled, params) ?? false;
+  }
+
+  isOverlayEnabled(name: string): boolean {
+    return this.engine?.isOverlayEnabled(name) ?? false;
+  }
+
+  clearBehaviors(): void {
+    this.engine?.clear();
+  }
+
+  getBehaviorStates(): import("./behavior/engine").BehaviorStateInfo[] {
+    const engine = this.engine;
+    const ctx = this.buildBehaviorContext();
+    if (!engine || !ctx) return [];
+    return engine.getStates(ctx);
+  }
+
+  private buildBehaviorContext(): import("./behavior/base-behavior").BehaviorContext | null {
+    const bot = this.controller.bot;
+    const movements = this.controller.getMovements();
+    if (!bot || !movements) return null;
+    return { bot, movements, log: (m: string) => this.pluginCtx.ctx.logger.info(`[MC/play] ${m}`) };
   }
 
   getStatus(): PlaySessionStatus {

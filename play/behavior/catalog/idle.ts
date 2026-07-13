@@ -6,6 +6,7 @@ const STEP_MS = 800;
 
 export class IdleWanderBehavior extends Behavior {
   readonly name = "idle";
+  readonly category = "movement" as const;
   private nextWanderAt = 0;
   private movingUntil = 0;
 

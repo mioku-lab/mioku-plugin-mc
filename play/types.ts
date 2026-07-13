@@ -7,6 +7,7 @@ export interface PlayServerConfig {
   auth?: "offline" | "microsoft";
   password?: string;
   maxPlayMs: number;
+  joinCommands: string[];
 }
 
 export interface GroupBinding {
@@ -75,10 +76,18 @@ export interface PlaySessionStatus {
 }
 
 function asStringList(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((v) => String(v ?? "").trim())
-    .filter((v) => v.length > 0);
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => String(v ?? "").trim())
+      .filter((v) => v.length > 0);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,]+/)
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0);
+  }
+  return [];
 }
 
 function asNumber(value: unknown, fallback: number): number {
@@ -102,6 +111,7 @@ function normalizeServer(raw: any): PlayServerConfig {
     auth,
     password: raw?.password ? String(raw.password) : undefined,
     maxPlayMs: asPositiveNumber(raw?.maxPlayMs, 30 * 60_000),
+    joinCommands: asStringList(raw?.joinCommands),
   };
 }
 

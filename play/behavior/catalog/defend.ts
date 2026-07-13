@@ -4,13 +4,17 @@ import { equipSword } from "../../util/inventory";
 
 export class SelfDefenseBehavior extends Behavior {
   readonly name = "defend";
-  private readonly radius: number;
+  readonly category = "combat" as const;
+  private radius = 8;
   private armed = false;
   private attacking = false;
 
-  constructor(params: Record<string, string>) {
-    super();
+  protected onConfigure(params: Record<string, string>): void {
     this.radius = Number(params.radius) || 8;
+  }
+
+  isActive(ctx: BehaviorContext): boolean {
+    return nearestHostile(ctx.bot, this.radius) !== null;
   }
 
   onStart(): void {
@@ -24,26 +28,25 @@ export class SelfDefenseBehavior extends Behavior {
       this.armed = true;
     }
     const target = nearestHostile(ctx.bot, this.radius);
-    if (target) {
-      if (!this.attacking) {
-        this.attacking = true;
-        ctx.bot.pvp
-          .attack(target)
-          .catch(() => {
-            // ignore
-          })
-          .finally(() => {
-            this.attacking = false;
-          });
+    if (!target) {
+      this.attacking = false;
+      try {
+        await ctx.bot.pvp.stop();
+      } catch {
+        // ignore
       }
       return;
     }
-    this.attacking = false;
-    try {
-      await ctx.bot.pvp.stop();
-    } catch {
-      // ignore
-    }
+    if (this.attacking) return;
+    this.attacking = true;
+    ctx.bot.pvp
+      .attack(target)
+      .catch(() => {
+        // ignore
+      })
+      .finally(() => {
+        this.attacking = false;
+      });
   }
 
   onStop(ctx: BehaviorContext): void {

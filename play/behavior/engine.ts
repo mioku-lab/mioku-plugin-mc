@@ -1,33 +1,85 @@
 import type { Behavior, BehaviorContext } from "./base-behavior";
-import type { SurvivalGuard } from "./survival-guard";
 import type { BehaviorSpec } from "../types";
 import { createBehavior } from "./catalog/factory";
 
 export interface BehaviorEngineOptions {
   ctxBuilder: () => BehaviorContext | null;
-  survivalGuard: SurvivalGuard;
   tickInterval: number;
-  initial?: BehaviorSpec;
+  survival: Behavior[];
+  overlays: Behavior[];
+  initialMovement?: BehaviorSpec;
+}
+
+export interface BehaviorStateInfo {
+  name: string;
+  category: string;
+  priority: number;
+  enabled: boolean;
+  active: boolean;
 }
 
 export class BehaviorEngine {
-  private userBehavior: Behavior | null = null;
+  private readonly survival: Behavior[];
+  private readonly overlays: Behavior[];
+  private movement: Behavior | null = null;
   private current: Behavior | null = null;
-  private currentKey: string | null = null;
   private timer?: NodeJS.Timeout;
   private readonly ctxBuilder: () => BehaviorContext | null;
-  private readonly survivalGuard: SurvivalGuard;
   private readonly tickInterval: number;
 
   constructor(opts: BehaviorEngineOptions) {
     this.ctxBuilder = opts.ctxBuilder;
-    this.survivalGuard = opts.survivalGuard;
     this.tickInterval = opts.tickInterval;
-    if (opts.initial) this.userBehavior = createBehavior(opts.initial);
+    this.survival = opts.survival;
+    this.overlays = opts.overlays;
+    if (opts.initialMovement) {
+      this.movement = createBehavior(opts.initialMovement);
+    }
   }
 
-  setUserBehavior(spec: BehaviorSpec): void {
-    this.userBehavior = createBehavior(spec);
+  setMovement(spec: BehaviorSpec): void {
+    this.movement = createBehavior(spec);
+  }
+
+  stopMovement(): void {
+    this.movement = createBehavior({ behavior: "idle", params: {} });
+  }
+
+  toggleOverlay(name: string, enabled: boolean, params?: Record<string, string>): boolean {
+    const b = this.overlays.find((o) => o.name === name);
+    if (!b) return false;
+    if (params) b.configure(params);
+    b.enabled = enabled;
+    return true;
+  }
+
+  isOverlayEnabled(name: string): boolean {
+    const b = this.overlays.find((o) => o.name === name);
+    return b?.enabled ?? false;
+  }
+
+  clear(): void {
+    for (const o of this.overlays) o.enabled = false;
+    this.movement = createBehavior({ behavior: "idle", params: {} });
+  }
+
+  currentLabel(): string | null {
+    return this.current?.name ?? null;
+  }
+
+  getStates(ctx: BehaviorContext): BehaviorStateInfo[] {
+    const all = [
+      ...this.survival,
+      ...this.overlays,
+      ...(this.movement ? [this.movement] : []),
+    ];
+    return all.map((b) => ({
+      name: b.name,
+      category: b.category,
+      priority: b.priority,
+      enabled: b.effectivelyEnabled,
+      active: b.effectivelyEnabled && this.safeActive(b, ctx),
+    }));
   }
 
   start(): void {
@@ -49,54 +101,64 @@ export class BehaviorEngine {
       }
     }
     this.current = null;
-    this.currentKey = null;
-  }
-
-  currentLabel(): string | null {
-    return this.current?.name ?? this.userBehavior?.name ?? null;
   }
 
   private tick(): void {
     const ctx = this.ctxBuilder();
     if (!ctx) return;
-    const survival = this.survivalGuard.check(ctx);
-    const target = survival ?? this.userBehavior;
-    if (!target) {
-      this.maybeStopCurrent(ctx);
-      return;
+
+    const candidates: Behavior[] = [];
+    for (const b of this.survival) candidates.push(b);
+    for (const b of this.overlays) candidates.push(b);
+    if (this.movement) candidates.push(this.movement);
+
+    let winner: Behavior | null = null;
+    for (const b of candidates) {
+      if (!b.effectivelyEnabled) continue;
+      if (!this.safeActive(b, ctx)) continue;
+      if (!winner || b.priority > winner.priority) winner = b;
     }
-    const key = (survival ? "surv:" : "user:") + target.name;
-    if (key !== this.currentKey) {
-      this.maybeStopCurrent(ctx);
-      this.current = target;
-      this.currentKey = key;
-      try {
-        this.current.onStart(ctx);
-      } catch (e) {
-        ctx.log(`行为 onStart 失败(${target.name}): ${e}`);
+
+    if (this.current !== winner) {
+      if (this.current) {
+        try {
+          this.current.onStop(ctx);
+        } catch (e) {
+          ctx.log(`行为 onStop 失败(${this.current.name}): ${e}`);
+        }
+      }
+      this.current = winner;
+      if (this.current) {
+        try {
+          this.current.onStart(ctx);
+        } catch (e) {
+          ctx.log(`行为 onStart 失败(${this.current.name}): ${e}`);
+        }
       }
     }
-    const cur = this.current;
-    if (!cur) return;
-    try {
-      cur.onTick(ctx);
-    } catch (e) {
-      ctx.log(`行为 onTick 失败(${target.name}): ${e}`);
-    }
-    if (cur.isFinished()) {
-      this.maybeStopCurrent(ctx);
+
+    if (this.current) {
+      try {
+        this.current.onTick(ctx);
+      } catch (e) {
+        ctx.log(`行为 onTick 失败(${this.current.name}): ${e}`);
+      }
+      if (this.current.isFinished()) {
+        try {
+          this.current.onStop(ctx);
+        } catch {
+          // ignore
+        }
+        this.current = null;
+      }
     }
   }
 
-  private maybeStopCurrent(ctx: BehaviorContext): void {
-    if (this.current) {
-      try {
-        this.current.onStop(ctx);
-      } catch (e) {
-        ctx.log(`行为 onStop 失败(${this.current.name}): ${e}`);
-      }
-      this.current = null;
-      this.currentKey = null;
+  private safeActive(b: Behavior, ctx: BehaviorContext): boolean {
+    try {
+      return b.isActive(ctx);
+    } catch {
+      return false;
     }
   }
 }

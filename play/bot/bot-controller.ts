@@ -18,6 +18,7 @@ export class BotController {
   private readonly bus: PlayBus;
   private readonly log: (msg: string) => void;
   private movements?: Movements;
+  private joinedOnce = false;
 
   constructor(opts: BotControllerOptions) {
     this.server = opts.server;
@@ -34,7 +35,7 @@ export class BotController {
       auth: this.server.auth ?? "offline",
       password: this.server.password,
       version: this.server.version || undefined,
-      hideErrors: true,
+      viewDistance: "short",
     } as any);
     this.bot = bot;
 
@@ -91,6 +92,10 @@ export class BotController {
     bot.on("spawn", () => {
       this.setupMovements();
       this.bus.emit("spawn");
+      if (!this.joinedOnce) {
+        this.joinedOnce = true;
+        this.scheduleJoinCommands();
+      }
     });
     bot.on("chat", (username: string, message: string) => {
       if (username === bot.username) return;
@@ -98,7 +103,12 @@ export class BotController {
     });
     bot.on("whisper", (username: string, message: string) => {
       if (username === bot.username) return;
-      this.emitChat({ kind: "whisper", username, text: message, at: Date.now() });
+      this.emitChat({
+        kind: "whisper",
+        username,
+        text: message,
+        at: Date.now(),
+      });
     });
     bot.on("messagestr", (message: string) => {
       const text = String(message || "").trim();
@@ -109,24 +119,43 @@ export class BotController {
       const name = player?.username;
       if (!name || name === bot.username) return;
       this.bus.emit("playerJoined", name);
-      this.emitChat({ kind: "join", username: name, text: `${name} 加入了游戏`, at: Date.now() });
+      this.emitChat({
+        kind: "join",
+        username: name,
+        text: `${name} 加入了游戏`,
+        at: Date.now(),
+      });
     });
     bot.on("playerLeft", (player: any) => {
       const name = player?.username;
       if (!name || name === bot.username) return;
       this.bus.emit("playerLeft", name);
-      this.emitChat({ kind: "left", username: name, text: `${name} 离开了游戏`, at: Date.now() });
+      this.emitChat({
+        kind: "left",
+        username: name,
+        text: `${name} 离开了游戏`,
+        at: Date.now(),
+      });
     });
     bot.on("health", () => this.bus.emit("health"));
     bot.on("death", () => {
       this.bus.emit("death");
-      this.emitChat({ kind: "death", username: bot.username, text: `${bot.username} 死亡了`, at: Date.now() });
+      this.emitChat({
+        kind: "death",
+        username: bot.username,
+        text: `${bot.username} 死亡了`,
+        at: Date.now(),
+      });
     });
     bot.on("respawn", () => this.bus.emit("respawn"));
     bot.on("entityHurt", (entity: any) => this.bus.emit("entityHurt", entity));
     bot.on("physicTick", () => this.bus.emit("physicTick"));
-    bot.on("kicked", (reason: string) => this.bus.emit("kicked", String(reason || "")));
-    bot.on("end", (reason: string) => this.bus.emit("end", String(reason || "")));
+    bot.on("kicked", (reason: string) =>
+      this.bus.emit("kicked", String(reason || "")),
+    );
+    bot.on("end", (reason: string) =>
+      this.bus.emit("end", String(reason || "")),
+    );
     bot.on("error", (err: Error) => {
       this.log(`bot 错误: ${err}`);
       this.bus.emit("error", err);
@@ -142,8 +171,11 @@ export class BotController {
     if (!bot) return;
     try {
       this.movements = new Movements(bot);
-      this.movements.allowSprinting = true;
       this.movements.canDig = true;
+      this.movements.allowSprinting = true;
+      this.movements.allowParkour = true;
+      this.movements.allow1by1towers = true;
+      this.movements.maxDropDown = 4;
       bot.pathfinder.setMovements(this.movements);
     } catch (err) {
       this.log(`初始化 Movements 失败: ${err}`);
@@ -152,6 +184,25 @@ export class BotController {
 
   getMovements(): Movements | undefined {
     return this.movements;
+  }
+
+  private scheduleJoinCommands(): void {
+    const cmds = this.server.joinCommands ?? [];
+    if (cmds.length === 0) return;
+    const run = () => {
+      const bot = this.bot;
+      if (!bot) return;
+      cmds.forEach((cmd, i) => {
+        setTimeout(() => {
+          try {
+            bot.chat(cmd);
+          } catch (e) {
+            this.log(`执行加入命令失败 (${i}): ${e}`);
+          }
+        }, i * 1_000);
+      });
+    };
+    setTimeout(run, 2_000);
   }
 
   chat(message: string): void {

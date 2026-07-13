@@ -8,6 +8,7 @@ const APPROACH_DISTANCE = 2;
 
 export class SocializeBehavior extends Behavior {
   readonly name = "socialize";
+  readonly category = "movement" as const;
   private retargetAt = 0;
   private emoteAt = 0;
 

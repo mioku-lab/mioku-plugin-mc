@@ -1,9 +1,10 @@
-import { SurvivalBehavior, type BehaviorContext } from "../base-behavior";
+import { Behavior, type BehaviorContext } from "../base-behavior";
 
-export class EscapeLavaBehavior extends SurvivalBehavior {
+export class EscapeLavaBehavior extends Behavior {
   readonly name = "escape_lava";
+  readonly category = "survival" as const;
 
-  shouldActivate(ctx: BehaviorContext): boolean {
+  isActive(ctx: BehaviorContext): boolean {
     const bot = ctx.bot;
     const pos = bot.entity?.position;
     if (!pos) return false;

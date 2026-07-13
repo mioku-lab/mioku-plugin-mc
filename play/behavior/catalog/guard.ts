@@ -7,16 +7,16 @@ const RETARGET_MS = 3_000;
 
 export class GuardPositionBehavior extends Behavior {
   readonly name = "guard";
-  private x: number;
-  private y: number;
-  private z: number;
-  private readonly radius: number;
+  readonly category = "movement" as const;
+  private x = 0;
+  private y = 0;
+  private z = 0;
+  private radius = 8;
   private retargetAt = 0;
   private attacking = false;
   private armed = false;
 
-  constructor(params: Record<string, string>) {
-    super();
+  protected onConfigure(params: Record<string, string>): void {
     this.x = Number(params.x) || 0;
     this.y = Number(params.y) || 0;
     this.z = Number(params.z) || 0;

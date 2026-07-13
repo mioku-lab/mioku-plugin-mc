@@ -1,22 +1,20 @@
 import { Behavior, type BehaviorContext } from "../base-behavior";
 import { goals } from "mineflayer-pathfinder";
-
-const RETARGET_MS = 2_000;
+import { entityDistance } from "../../util/entities";
 
 export class FollowPlayerBehavior extends Behavior {
   readonly name = "follow";
-  private readonly target: string;
-  private readonly distance: number;
-  private retargetAt = 0;
+  readonly category = "movement" as const;
+  private target = "";
+  private distance = 3;
 
-  constructor(params: Record<string, string>) {
-    super();
+  protected onConfigure(params: Record<string, string>): void {
     this.target = params.target ?? "";
     this.distance = Number(params.distance) || 3;
   }
 
-  onStart(): void {
-    this.retargetAt = 0;
+  isActive(ctx: BehaviorContext): boolean {
+    return !!this.target && !!ctx.bot.players[this.target]?.entity;
   }
 
   onTick(ctx: BehaviorContext): void {
@@ -24,12 +22,14 @@ export class FollowPlayerBehavior extends Behavior {
     const player = bot.players[this.target]?.entity;
     if (!player) return;
     if (bot.pathfinder.isMoving()) return;
-    const now = Date.now();
-    if (now < this.retargetAt) return;
-    this.retargetAt = now + RETARGET_MS;
-    bot.pathfinder.goto(new goals.GoalFollow(player, this.distance)).catch(() => {
-      // ignore pathing errors
-    });
+    const dist = entityDistance(bot.entity, player);
+    if (dist > this.distance + 1) {
+      try {
+        bot.pathfinder.setGoal(new goals.GoalFollow(player, this.distance), true);
+      } catch (e) {
+        ctx.log(`follow 寻路失败: ${e}`);
+      }
+    }
   }
 
   onStop(ctx: BehaviorContext): void {

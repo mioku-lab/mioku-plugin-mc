@@ -1,12 +1,11 @@
-import { SurvivalBehavior, type BehaviorContext } from "../base-behavior";
+import { Behavior, type BehaviorContext } from "../base-behavior";
 
-export class EscapeWaterBehavior extends SurvivalBehavior {
+export class EscapeWaterBehavior extends Behavior {
   readonly name = "escape_water";
+  readonly category = "survival" as const;
 
-  shouldActivate(ctx: BehaviorContext): boolean {
-    const bot = ctx.bot;
-    const oxygen = bot.oxygenLevel ?? 20;
-    return oxygen <= 0;
+  isActive(ctx: BehaviorContext): boolean {
+    return (ctx.bot.oxygenLevel ?? 20) <= 0;
   }
 
   onTick(ctx: BehaviorContext): void {

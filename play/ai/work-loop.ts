@@ -67,7 +67,7 @@ export class WorkLoop {
     }
 
     const spec = parseWorkOutput(output);
-    this.engine.setUserBehavior(spec);
+    this.engine.setMovement(spec);
     this.pluginCtx.ctx.logger.info(
       `[MC/play] 行为切换: ${spec.behavior} ${JSON.stringify(spec.params)}`,
     );

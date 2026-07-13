@@ -7,28 +7,54 @@ export interface BehaviorContext {
   log: (msg: string) => void;
 }
 
+export type BehaviorCategory = "survival" | "combat" | "maintenance" | "movement";
+
+export const CATEGORY_PRIORITY: Record<BehaviorCategory, number> = {
+  survival: 100,
+  combat: 70,
+  maintenance: 60,
+  movement: 50,
+};
+
 export abstract class Behavior {
   abstract readonly name: string;
-  priority = 0;
+  abstract readonly category: BehaviorCategory;
+  readonly priorityOverride?: number;
+  enabled = false;
+  protected params: Record<string, string> = {};
+
+  get priority(): number {
+    return this.priorityOverride ?? CATEGORY_PRIORITY[this.category];
+  }
+
+  get effectivelyEnabled(): boolean {
+    return this.enabled || this.category === "survival";
+  }
+
+  isActive(_ctx: BehaviorContext): boolean {
+    return true;
+  }
+
   onStart(_ctx: BehaviorContext): void | Promise<void> {
     // noop by default
   }
+
   abstract onTick(ctx: BehaviorContext): void | Promise<void>;
+
   onStop(_ctx: BehaviorContext): void | Promise<void> {
     // noop by default
   }
+
   isFinished(): boolean {
     return false;
   }
-  canBeInterrupted(): boolean {
-    return true;
-  }
-}
 
-export abstract class SurvivalBehavior extends Behavior {
-  priority = 100;
-  canBeInterrupted(): boolean {
-    return false;
+  configure(params: Record<string, string>): void {
+    this.params = params;
+    this.onConfigure(params);
   }
-  abstract shouldActivate(ctx: BehaviorContext): boolean;
+
+  protected onConfigure(_params: Record<string, string>): void {
+    // subclasses read params here
+  }
 }

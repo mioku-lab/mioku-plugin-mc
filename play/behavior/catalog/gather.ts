@@ -14,11 +14,11 @@ const RESOURCE_MATCHERS: Record<string, (name: string) => boolean> = {
 
 export class GatherResourceBehavior extends Behavior {
   readonly name = "gather";
-  private readonly resource: string;
+  readonly category = "movement" as const;
+  private resource = "wood";
   private mining = false;
 
-  constructor(params: Record<string, string>) {
-    super();
+  protected onConfigure(params: Record<string, string>): void {
     this.resource = params.resource ?? "wood";
   }
 

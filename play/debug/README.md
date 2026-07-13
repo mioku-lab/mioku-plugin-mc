@@ -20,34 +20,44 @@
 | `/join <服务器ID>` | 以 debug 模式进入服务器（无 AI 循环） | `/join survival` |
 | `/exit` | 离开当前服务器 | `/exit` |
 | `/say <文本>` | 让 bot 在游戏内发言 | `/say 大家好~` |
-| `/motion <行为> [key=value ...]` | 直接切换到指定行为 | `/motion follow target=Steve distance=3` |
-| `/stop` | 停止当前行为，回到 idle | `/stop` |
-| `/status` | 查看当前会话状态（服务器/连接/行为/时长） | `/status` |
-| `/behaviors` | 列出可用行为及参数 | `/behaviors` |
+| `/motion <移动行为> [key=value ...]` | 设置移动行为 | `/motion follow target=Steve distance=3` |
+| `/motion <defend\|auto_eat> [key=...]` | 切换叠加状态（开/关） | `/motion defend radius=10` |
+| `/stop` | 停止移动，回 idle（叠加状态保留） | `/stop` |
+| `/clear` | 清空所有状态（移动 + 叠加） | `/clear` |
+| `/off <名称>` | 关闭指定叠加状态 | `/off defend` |
+| `/status` | 查看启用的状态 & 正在执行的行为 | `/status` |
+| `/behaviors` | 列出所有行为及参数 | `/behaviors` |
 
-## 可用行为（`/motion` 的 `<行为>`）
+行为系统的并发模型、每个状态的含义、参数说明详见 [`play/behavior/README.md`](../behavior/README.md)。
+
+## 移动行为（`/motion`，同时只能有一个）
 
 - `idle`
 - `follow target=<玩家名> [distance=<格>]`
-- `defend [radius=<格>]`
-- `follow_assist target=<玩家名>`
-- `gather resource=<wood|stone|food|coal|iron>`
+- `gather resource=<wood|stone|coal|iron>`
 - `farm_mobs`
 - `guard [x=<int> y=<int> z=<int>] [radius=<格>]`（不传坐标则守当前位置）
 - `socialize`
 - `flee`
 - `explore`
 
-### 示例
+## 叠加状态（`/motion`，可同时开多个，按优先级抢占移动）
+
+- `defend [radius=<格, 默认8>]` - 自动战斗，敌对生物靠近时抢占移动去攻击
+- `auto_eat` - 自动进食，饥饿且有食物且不在战斗时进食
+
+生存层（escape_lava / mlg_fall / flee_creeper / escape_water）常驻，无需开启。
+
+### 示例：同时跟随 + 自动战斗 + 自动进食
 
 ```
 /join survival
-/say 我来啦~
-/motion follow target=Steve distance=3
-/motion defend radius=10
-/motion gather resource=wood
-/stop
-/status
+/motion auto_eat                          # 开自动进食
+/motion defend                            # 开自动战斗
+/motion follow target=Steve distance=3    # 跟随 Steve
+/status                                   # 看三个状态都启用了
+/stop                                     # 停跟随（叠加保留）
+/clear                                    # 全清
 /exit
 ```
 

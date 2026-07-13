@@ -75,12 +75,12 @@ fields:
 
       - key: command_user
         label: 命令白名单
-        type: text
+        type: textarea
         description: 允许执行 RCON 命令的 QQ 号列表，每行一个
 
       - key: rcon_command_whitelist
         label: RCON 命令白名单
-        type: text
+        type: textarea
         description: 允许执行的 RCON 命令列表，每行一个
 
       - key: sync_enabled
@@ -171,6 +171,11 @@ fields:
         description: 单次游玩最长时长，到点自动下线
         placeholder: 1800000
 
+      - key: joinCommands
+        label: 加入后自动执行的命令
+        type: textarea
+        description: bot 第一次进入该服务器后自动发送的命令（每行一条，如 /login xxx），仅在首次 spawn 时执行，重生不重复
+
   - key: play.groups
     label: 群聊绑定
     type: array
@@ -187,7 +192,7 @@ fields:
         description: 该群使用的 bot QQ 号
       - key: allowedServerIds
         label: 允许的服务器
-        type: text
+        type: textarea
         description: 允许该群触发的服务器 ID，每行一个
 
   - key: play.toolPermission

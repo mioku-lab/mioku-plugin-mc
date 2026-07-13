@@ -5,6 +5,7 @@ const EXPLORE_RANGE = 30;
 
 export class ExploreBehavior extends Behavior {
   readonly name = "explore";
+  readonly category = "movement" as const;
   private exploring = false;
 
   onTick(ctx: BehaviorContext): void {

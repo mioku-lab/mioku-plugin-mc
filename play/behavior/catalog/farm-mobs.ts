@@ -6,6 +6,7 @@ const HUNT_RADIUS = 20;
 
 export class FarmMobsBehavior extends Behavior {
   readonly name = "farm_mobs";
+  readonly category = "movement" as const;
   private hunting = false;
 
   async onTick(ctx: BehaviorContext): Promise<void> {

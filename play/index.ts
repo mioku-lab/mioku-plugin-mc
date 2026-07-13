@@ -7,13 +7,13 @@ import { PlaySession } from "./session";
 import { MainLoop } from "./ai/main-loop";
 import { WorkLoop } from "./ai/work-loop";
 import { BehaviorEngine } from "./behavior/engine";
-import { SurvivalGuard } from "./behavior/survival-guard";
-import type { SurvivalBehavior } from "./behavior/base-behavior";
+import type { Behavior } from "./behavior/base-behavior";
 import { EscapeLavaBehavior } from "./behavior/survival/escape-lava";
 import { EscapeWaterBehavior } from "./behavior/survival/escape-water";
 import { MlgFallBehavior } from "./behavior/survival/mlg-fall";
 import { FleeCreeperBehavior } from "./behavior/survival/flee-creeper";
 import { AutoEatBehavior } from "./behavior/survival/auto-eat";
+import { SelfDefenseBehavior } from "./behavior/catalog/defend";
 import type { GroupBinding, PlayServerConfig } from "./types";
 
 export interface PlayManagerOptions {
@@ -81,14 +81,17 @@ export class PlayManager {
     }
   }
 
-  private buildSurvivalBehaviors(): SurvivalBehavior[] {
+  private buildSurvivalBehaviors(): Behavior[] {
     return [
       new EscapeLavaBehavior(),
       new MlgFallBehavior(),
       new FleeCreeperBehavior(),
       new EscapeWaterBehavior(),
-      new AutoEatBehavior(),
     ];
+  }
+
+  private buildOverlays(): Behavior[] {
+    return [new SelfDefenseBehavior(), new AutoEatBehavior()];
   }
 
   async enter(
@@ -130,7 +133,6 @@ export class PlayManager {
     });
     session.debug = debug;
 
-    const survivalGuard = new SurvivalGuard(this.buildSurvivalBehaviors());
     const behaviorCtxBuilder = () => {
       const bot = session.controller.bot;
       const movements = session.controller.getMovements();
@@ -143,9 +145,10 @@ export class PlayManager {
     };
     const engine = new BehaviorEngine({
       ctxBuilder: behaviorCtxBuilder,
-      survivalGuard,
       tickInterval: config.behaviorTickIntervalMs,
-      initial: { behavior: "idle", params: {} },
+      survival: this.buildSurvivalBehaviors(),
+      overlays: this.buildOverlays(),
+      initialMovement: { behavior: "idle", params: {} },
     });
     const workLoop = new WorkLoop({ session, pluginCtx, engine });
     const mainLoop = new MainLoop({

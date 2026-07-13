@@ -34,15 +34,18 @@ export class BehaviorEngine {
     this.overlays = opts.overlays;
     if (opts.initialMovement) {
       this.movement = createBehavior(opts.initialMovement);
+      this.movement.enabled = true;
     }
   }
 
   setMovement(spec: BehaviorSpec): void {
     this.movement = createBehavior(spec);
+    this.movement.enabled = true;
   }
 
   stopMovement(): void {
     this.movement = createBehavior({ behavior: "idle", params: {} });
+    this.movement.enabled = true;
   }
 
   toggleOverlay(name: string, enabled: boolean, params?: Record<string, string>): boolean {
@@ -61,6 +64,7 @@ export class BehaviorEngine {
   clear(): void {
     for (const o of this.overlays) o.enabled = false;
     this.movement = createBehavior({ behavior: "idle", params: {} });
+    this.movement.enabled = true;
   }
 
   currentLabel(): string | null {

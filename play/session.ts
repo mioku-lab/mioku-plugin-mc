@@ -61,6 +61,7 @@ export class PlaySession {
     this.bus.on("error", () => this.onUnexpectedEnd("bot 错误"));
 
     await this.controller.connect();
+    await this.controller.waitForChunksLoaded();
     this.connected = true;
     this.startWatchdog();
 

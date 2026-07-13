@@ -91,7 +91,11 @@ export class PlayManager {
   }
 
   private buildOverlays(): Behavior[] {
-    return [new SelfDefenseBehavior(), new AutoEatBehavior()];
+    const defend = new SelfDefenseBehavior();
+    defend.enabled = true;
+    const autoEat = new AutoEatBehavior();
+    autoEat.enabled = true;
+    return [defend, autoEat];
   }
 
   async enter(

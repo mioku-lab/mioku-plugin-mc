@@ -35,4 +35,12 @@ export class AutoEatBehavior extends Behavior {
   onStop(): void {
     this.eating = false;
   }
+
+  contributesState(ctx: BehaviorContext): Record<string, unknown> {
+    return {
+      eating: this.eating,
+      food: ctx.bot.food ?? 0,
+      foodLow: (ctx.bot.food ?? 20) <= HUNGER_THRESHOLD,
+    };
+  }
 }

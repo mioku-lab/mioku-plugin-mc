@@ -30,4 +30,11 @@ export class EscapeLavaBehavior extends Behavior {
       // ignore
     }
   }
+
+  contributesState(): Record<string, unknown> {
+    return {
+      active: true,
+      hazard: "lava_or_fire",
+    };
+  }
 }

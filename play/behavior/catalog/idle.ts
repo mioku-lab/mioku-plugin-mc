@@ -9,10 +9,12 @@ export class IdleWanderBehavior extends Behavior {
   readonly category = "movement" as const;
   private nextWanderAt = 0;
   private movingUntil = 0;
+  private lastAction: "walk" | "look" | "idle" = "idle";
 
   onStart(): void {
     this.nextWanderAt = Date.now() + 3_000;
     this.movingUntil = 0;
+    this.lastAction = "idle";
   }
 
   onTick(ctx: BehaviorContext): void {
@@ -30,10 +32,15 @@ export class IdleWanderBehavior extends Behavior {
         ctx.bot.look(Math.random() * Math.PI * 2, 0, true);
         ctx.bot.setControlState("forward", true);
         this.movingUntil = now + STEP_MS;
+        this.lastAction = "walk";
       } catch {
         // ignore
       }
       this.nextWanderAt = now + WANDER_INTERVAL_MS + Math.random() * WANDER_JITTER_MS;
+    } else if (this.movingUntil > now) {
+      this.lastAction = "walk";
+    } else {
+      this.lastAction = "idle";
     }
   }
 
@@ -43,5 +50,14 @@ export class IdleWanderBehavior extends Behavior {
     } catch {
       // ignore
     }
+  }
+
+  contributesState(): Record<string, unknown> {
+    const now = Date.now();
+    return {
+      lastAction: this.lastAction,
+      nextWanderInMs: Math.max(0, this.nextWanderAt - now),
+      moving: this.movingUntil > now,
+    };
   }
 }

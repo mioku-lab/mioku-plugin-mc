@@ -20,4 +20,12 @@ export class EscapeWaterBehavior extends Behavior {
       // ignore
     }
   }
+
+  contributesState(ctx: BehaviorContext): Record<string, unknown> {
+    return {
+      active: true,
+      oxygen: ctx.bot.oxygenLevel ?? 0,
+      drowning: true,
+    };
+  }
 }

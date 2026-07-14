@@ -32,4 +32,10 @@ export class FarmMobsBehavior extends Behavior {
       // ignore
     }
   }
+
+  contributesState(): Record<string, unknown> {
+    return {
+      hunting: this.hunting,
+    };
+  }
 }

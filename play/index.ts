@@ -152,9 +152,9 @@ export class PlayManager {
       tickInterval: config.behaviorTickIntervalMs,
       survival: this.buildSurvivalBehaviors(),
       overlays: this.buildOverlays(),
-      initialMovement: { behavior: "idle", params: {} },
+      initialMovement: { name: "idle", params: {} },
     });
-    const workLoop = new WorkLoop({ session, pluginCtx, engine });
+    const workLoop = new WorkLoop({ session, pluginCtx });
     const mainLoop = new MainLoop({
       session,
       pluginCtx,

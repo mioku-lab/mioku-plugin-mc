@@ -1,5 +1,3 @@
-import type { BehaviorSpec } from "../types";
-
 export interface ParsedMainOutput {
   chatLines: string[];
   actions: string[];
@@ -41,25 +39,40 @@ export function parseMainOutput(text: string): ParsedMainOutput {
   return result;
 }
 
-const BEHAVIOR_RE = /^behavior=(\w+)(?:\s+(.*))?$/i;
+export interface ParsedWorkOutput {
+  bundle: string;
+  params: Record<string, unknown>;
+}
 
-export function parseWorkOutput(text: string): BehaviorSpec {
+export function parseWorkOutput(text: string): ParsedWorkOutput {
   const line =
     String(text || "")
       .split(/\r?\n/)
       .map((l) => l.trim())
       .find(Boolean) ?? "";
-  const m = line.match(BEHAVIOR_RE);
-  if (!m) return { behavior: "idle", params: {} };
-  const behavior = m[1].toLowerCase();
-  const params: Record<string, string> = {};
-  if (m[2]) {
-    for (const part of m[2].split(/\s+/)) {
-      const eq = part.indexOf("=");
-      if (eq > 0) {
-        params[part.slice(0, eq)] = part.slice(eq + 1);
-      }
+
+  const json = tryParseJson(line);
+  if (json) {
+    const bundle = (json.bundle ?? json.task ?? "").toString();
+    if (bundle) {
+      const params =
+        json.params && typeof json.params === "object"
+          ? (json.params as Record<string, unknown>)
+          : {};
+      return { bundle, params };
     }
   }
-  return { behavior, params };
+
+  return { bundle: "task.idle_wander", params: {} };
+}
+
+function tryParseJson(line: string): Record<string, unknown> | null {
+  if (!line.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(line);
+    if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+  } catch {
+    // not JSON
+  }
+  return null;
 }

@@ -55,4 +55,11 @@ export class GatherResourceBehavior extends Behavior {
       // ignore
     }
   }
+
+  contributesState(): Record<string, unknown> {
+    return {
+      resource: this.resource,
+      mining: this.mining,
+    };
+  }
 }

@@ -49,6 +49,15 @@ export abstract class Behavior {
     return false;
   }
 
+  /**
+   * 对外暴露的内部状态（LLM 调试 / snapshot 用）。
+   * 默认返回空对象；子类覆写以贡献字段。键名应稳定、字符串或简单类型，
+   * 不返回 entity.position 等敏感坐标（距离/ID/名字 安全）。
+   */
+  contributesState(_ctx: BehaviorContext): Record<string, unknown> {
+    return {};
+  }
+
   configure(params: Record<string, string>): void {
     this.params = params;
     this.onConfigure(params);

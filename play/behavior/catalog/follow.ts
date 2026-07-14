@@ -7,6 +7,7 @@ export class FollowPlayerBehavior extends Behavior {
   readonly category = "movement" as const;
   private target = "";
   private distance = 3;
+  private lastDist = -1;
 
   protected onConfigure(params: Record<string, string>): void {
     this.target = params.target ?? "";
@@ -21,8 +22,12 @@ export class FollowPlayerBehavior extends Behavior {
     const bot = ctx.bot;
     const player = bot.players[this.target]?.entity;
     if (!player) return;
-    if (bot.pathfinder.isMoving()) return;
+    if (bot.pathfinder.isMoving()) {
+      this.lastDist = entityDistance(bot.entity, player);
+      return;
+    }
     const dist = entityDistance(bot.entity, player);
+    this.lastDist = dist;
     if (dist > this.distance + 1) {
       try {
         bot.pathfinder.setGoal(new goals.GoalFollow(player, this.distance), true);
@@ -38,5 +43,13 @@ export class FollowPlayerBehavior extends Behavior {
     } catch {
       // ignore
     }
+  }
+
+  contributesState(): Record<string, unknown> {
+    return {
+      target: this.target || null,
+      distance: this.distance,
+      lastObservedDist: this.lastDist < 0 ? null : Math.round(this.lastDist * 10) / 10,
+    };
   }
 }

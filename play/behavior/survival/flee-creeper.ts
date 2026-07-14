@@ -37,4 +37,11 @@ export class FleeCreeperBehavior extends Behavior {
       // ignore
     }
   }
+
+  contributesState(): Record<string, unknown> {
+    return {
+      active: true,
+      hazard: "creeper",
+    };
+  }
 }

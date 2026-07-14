@@ -1,9 +1,7 @@
 import type { PlaySession } from "../session";
 import type { PlayPluginContext } from "../context";
-import type { BehaviorEngine } from "../behavior/engine";
 import { buildWorkPrompt } from "./prompt";
 import { parseWorkOutput } from "./output-parser";
-import { buildBotStatus } from "../util/status";
 import { withTimeoutMs } from "../util/async";
 
 const WORK_MODEL_TIMEOUT_MS = 15_000;
@@ -11,16 +9,13 @@ const WORK_MODEL_TIMEOUT_MS = 15_000;
 export class WorkLoop {
   private readonly session: PlaySession;
   private readonly pluginCtx: PlayPluginContext;
-  private readonly engine: BehaviorEngine;
 
   constructor(opts: {
     session: PlaySession;
     pluginCtx: PlayPluginContext;
-    engine: BehaviorEngine;
   }) {
     this.session = opts.session;
     this.pluginCtx = opts.pluginCtx;
-    this.engine = opts.engine;
   }
 
   start(): void {
@@ -33,22 +28,16 @@ export class WorkLoop {
 
   async dispatch(action: string): Promise<void> {
     const work = this.pluginCtx.workInstance;
-    const config = this.pluginCtx.getPlayConfig();
     const bot = this.session.controller.bot;
     if (!work || !bot) return;
 
-    const status = buildBotStatus(
-      bot,
-      this.engine.currentLabel(),
-      Date.now() - this.session.startedAt,
-      this.session.server.maxPlayMs,
-    );
-    if (!status) return;
+    const snap = this.session.getBehaviorSnapshot();
+    if (!snap) return;
 
     const prompt = buildWorkPrompt({
       action,
-      status,
-      lastBehavior: this.engine.currentLabel(),
+      snapshot: snap,
+      lastBundle: this.session.getCurrentMission()?.bundleId ?? null,
     });
 
     let output = "";
@@ -66,10 +55,20 @@ export class WorkLoop {
       return;
     }
 
-    const spec = parseWorkOutput(output);
-    this.engine.setMovement(spec);
-    this.pluginCtx.ctx.logger.info(
-      `[MC/play] 行为切换: ${spec.behavior} ${JSON.stringify(spec.params)}`,
-    );
+    const parsed = parseWorkOutput(output);
+    const result = this.session.startMission({
+      bundle: parsed.bundle,
+      params: parsed.params,
+    });
+    this.session.recordSwitchResult(result);
+    if (result.kind === "applied") {
+      this.pluginCtx.ctx.logger.info(
+        `[MC/play] 任务启动: ${result.bundleId} (mission=${result.missionId.slice(0, 8)})`,
+      );
+    } else {
+      this.pluginCtx.ctx.logger.warn(
+        `[MC/play] 任务启动失败: ${result.reason} - ${result.detail}`,
+      );
+    }
   }
 }

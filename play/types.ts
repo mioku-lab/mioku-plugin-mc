@@ -50,9 +50,9 @@ export const DEFAULT_PLAY_CONFIG: PlayConfig = {
   debug: { enabled: false },
 };
 
-export interface BehaviorSpec {
-  behavior: string;
-  params: Record<string, string>;
+export interface MovementInit {
+  name: string;
+  params?: Record<string, string>;
 }
 
 export type MainLoopTrigger =

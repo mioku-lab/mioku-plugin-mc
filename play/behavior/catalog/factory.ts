@@ -1,5 +1,5 @@
 import type { Behavior } from "../base-behavior";
-import type { BehaviorSpec } from "../../types";
+import type { MovementInit } from "../../types";
 import { IdleWanderBehavior } from "./idle";
 import { FollowPlayerBehavior } from "./follow";
 import { GatherResourceBehavior } from "./gather";
@@ -14,11 +14,13 @@ const MOVEMENT_FACTORIES: Record<string, () => Behavior> = {
   explore: () => new ExploreBehavior(),
 };
 
-export function createBehavior(spec: BehaviorSpec): Behavior {
-  const factory = MOVEMENT_FACTORIES[spec.behavior];
+export function createBehavior(init: MovementInit): Behavior {
+  const factory = MOVEMENT_FACTORIES[init.name];
   const behavior = factory ? factory() : new IdleWanderBehavior();
-  behavior.configure(spec.params ?? {});
+  behavior.configure(init.params ?? {});
   return behavior;
 }
 
-export const MOVEMENT_BEHAVIOR_NAMES = Object.keys(MOVEMENT_FACTORIES);
+export function hasMovementFactory(name: string): boolean {
+  return name in MOVEMENT_FACTORIES;
+}

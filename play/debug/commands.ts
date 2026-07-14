@@ -1,5 +1,4 @@
 import type { PlayManager } from "../index";
-import { MOVEMENT_BEHAVIOR_NAMES } from "../behavior/catalog/factory";
 
 export interface DebugCommandContext {
   text: string;
@@ -20,6 +19,8 @@ const KNOWN_COMMANDS = new Set([
   "/status",
   "/behaviors",
   "/off",
+  "/missions",
+  "/stopmission",
 ]);
 
 export function isDebugCommand(text: string): boolean {
@@ -27,30 +28,50 @@ export function isDebugCommand(text: string): boolean {
   return !!head && KNOWN_COMMANDS.has(head);
 }
 
-function parseMotionArgs(arg: string): { behavior: string; params: Record<string, string> } {
-  const parts = arg.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { behavior: "", params: {} };
-  const behavior = parts[0].toLowerCase();
-  const params: Record<string, string> = {};
-  for (let i = 1; i < parts.length; i++) {
-    const eq = parts[i].indexOf("=");
-    if (eq > 0) params[parts[i].slice(0, eq)] = parts[i].slice(eq + 1);
-  }
-  return { behavior, params };
-}
-
-const MOVEMENT_HELP: Record<string, string> = {
-  idle: "原地待机，偶尔张望",
-  follow: "跟随玩家。参数: target=<玩家名> [distance=<格, 默认3>]",
-  gather: "采集资源。参数: resource=<wood|stone|coal|iron>",
-  farm_mobs: "猎杀附近被动生物获取掉落物",
-  explore: "随机探索加载新区块",
-};
-
 const OVERLAY_HELP: Record<string, string> = {
   defend: "自动战斗。半径内有敌对生物时抢占移动去攻击。参数: [radius=<格, 默认8>]",
   auto_eat: "自动进食。饥饿且有食物且不在战斗时进食。",
 };
+
+interface ParsedBundleArgs {
+  bundle: string;
+  params: Record<string, unknown>;
+}
+
+function parseBundleArgs(arg: string): ParsedBundleArgs | null {
+  const trimmed = arg.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("{")) {
+    try {
+      const obj = JSON.parse(trimmed);
+      if (obj && typeof obj === "object" && typeof obj.bundle === "string") {
+        return {
+          bundle: obj.bundle,
+          params:
+            obj.params && typeof obj.params === "object"
+              ? (obj.params as Record<string, unknown>)
+              : {},
+        };
+      }
+    } catch {
+      return null;
+    }
+  }
+  const parts = trimmed.split(/\s+/);
+  const bundle = parts[0];
+  if (!bundle.startsWith("task.")) return null;
+  const params: Record<string, unknown> = {};
+  for (let i = 1; i < parts.length; i++) {
+    const eq = parts[i].indexOf("=");
+    if (eq > 0) {
+      const k = parts[i].slice(0, eq);
+      const raw = parts[i].slice(eq + 1);
+      const asNum = Number(raw);
+      params[k] = Number.isFinite(asNum) && raw !== "" ? asNum : raw;
+    }
+  }
+  return { bundle, params };
+}
 
 export async function handleDebugCommand(
   ctx: DebugCommandContext,
@@ -88,17 +109,54 @@ export async function handleDebugCommand(
       if (!s) return "当前没有进行中的 mc 会话";
       if (!s.controller.isOnline()) return "bot 尚未连接到服务器";
       if (!arg) return motionUsage();
-      const { behavior, params } = parseMotionArgs(arg);
-      if (MOVEMENT_BEHAVIOR_NAMES.includes(behavior)) {
-        s.setMovement({ behavior, params });
-        return `移动行为: ${behavior} ${formatParams(params)}`.trim();
+      if (OVERLAY_NAMES.includes(arg.toLowerCase().split(/\s+/)[0])) {
+        const head2 = arg.toLowerCase().split(/\s+/)[0];
+        const params: Record<string, string> = {};
+        for (const p of arg.split(/\s+/).slice(1)) {
+          const eq = p.indexOf("=");
+          if (eq > 0) params[p.slice(0, eq)] = p.slice(eq + 1);
+        }
+        const enable = !s.isOverlayEnabled(head2);
+        s.toggleOverlay(head2, enable, params);
+        return `${head2} ${enable ? "已开启" : "已关闭"}${
+          enable && Object.keys(params).length ? " " + formatParams(params) : ""
+        }`.trim();
       }
-      if (OVERLAY_NAMES.includes(behavior)) {
-        const now = !s.isOverlayEnabled(behavior);
-        s.toggleOverlay(behavior, now, params);
-        return `${behavior} ${now ? "已开启" : "已关闭"}${now && Object.keys(params).length ? " " + formatParams(params) : ""}`.trim();
+      const parsed = parseBundleArgs(arg);
+      if (!parsed) {
+        return `无法解析参数: ${arg}\n${motionUsage()}`;
       }
-      return `未知行为: ${behavior}\n${motionUsage()}`;
+      const result = s.startMission(parsed);
+      if (result.kind === "applied") {
+        return `任务已启动: ${result.bundleId} (mission=${result.missionId.slice(0, 8)})`;
+      }
+      return `任务被拒绝 (${result.reason}): ${result.detail}`;
+    }
+    case "/missions": {
+      const s = pm.getActiveSession(groupId);
+      if (!s) return "当前没有进行中的 mc 会话";
+      const bundles = s.listBundles();
+      const lines = [
+        "== Task Bundles (startMission API) ==",
+        ...bundles.map((b) => `- ${b.id} [${b.mode ?? "null"}]  ${b.description}`),
+      ];
+      const current = s.getCurrentMission();
+      if (current) {
+        lines.push(
+          "",
+          `当前任务: ${current.bundleId} (mission=${current.missionId.slice(0, 8)}, 启动于 ${new Date(current.startedAt).toLocaleTimeString()})`,
+        );
+      }
+      return lines.join("\n");
+    }
+    case "/stopmission": {
+      const s = pm.getActiveSession(groupId);
+      if (!s) return "当前没有进行中的 mc 会话";
+      const result = s.stopMission("debug_stop");
+      if (result.kind === "applied") {
+        return `任务已停止: ${result.bundleId}`;
+      }
+      return `停止失败 (${result.reason}): ${result.detail}`;
     }
     case "/stop": {
       const s = pm.getActiveSession(groupId);
@@ -128,22 +186,45 @@ export async function handleDebugCommand(
       const states = s.getBehaviorStates();
       const on = states.filter((x) => x.enabled);
       const activeNow = states.find((x) => x.active);
+      const mem = s.getMemorySnapshot();
+      const snap = s.getBehaviorSnapshot();
+      const memLines = Object.entries(mem)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => {
+          const valueStr = formatMemoryValue(v.value);
+          return `  ${k}=${valueStr} (${v.ageMs}ms ago)`;
+        });
+      const snapLines = snap
+        ? [
+            `Mode: ${snap.mode.current} | Cooldowns: ${Object.keys(snap.cooldowns).length} pending`,
+            `Active (internal state):`,
+            ...snap.activeBehaviors
+              .filter((x) => x.active)
+              .map((x) => `  ▶ ${x.name}: ${formatMemoryValue(x.internalState)}`),
+          ]
+        : [`Snapshot: (engine not ready)`];
       return [
         `服务器: ${st.serverName} | 状态: ${st.connected ? "已连接" : "未连接"}${s.debug ? " [debug]" : ""}`,
         `已游玩: ${Math.floor(elapsed / 60)}m${elapsed % 60}s | 当前执行: ${activeNow?.name ?? "none"}`,
         `已启用状态:`,
         ...on.map((x) => `  ${x.active ? "▶" : "○"} ${x.name} (${x.category}, P${x.priority})`),
+        ...snapLines,
+        `MemoryBus (${memLines.length} keys):`,
+        ...memLines,
       ].join("\n");
     }
     case "/behaviors": {
+      const s = pm.getActiveSession(groupId);
+      if (!s) return "当前没有进行中的 mc 会话";
+      const bundles = s.listBundles();
       return [
-        "== 移动行为（同时只能有一个）==",
-        ...MOVEMENT_BEHAVIOR_NAMES.map((n) => `- /motion ${n}${MOVEMENT_HELP[n] ? "  " + MOVEMENT_HELP[n] : ""}`),
+        "== 任务 Bundle (startMission API) ==",
+        ...bundles.map((b) => `- ${b.id} [${b.mode ?? "null"}]  ${b.description}`),
         "",
-        "== 叠加状态（可同时开启多个，按优先级抢占）==",
+        "== 叠加状态 (toggleOverlay) ==",
         ...OVERLAY_NAMES.map((n) => `- /motion ${n}  ${OVERLAY_HELP[n]}`),
         "",
-        "生存层（常驻，无需开启）: escape_lava / mlg_fall / flee_creeper / escape_water",
+        "生存层（常驻）: escape_lava / mlg_fall / flee_creeper / escape_water",
       ].join("\n");
     }
     default:
@@ -155,18 +236,30 @@ function formatParams(params: Record<string, string>): string {
   return Object.entries(params).map(([k, v]) => `${k}=${v}`).join(" ");
 }
 
+function formatMemoryValue(v: unknown): string {
+  if (v === null) return "null";
+  if (v === undefined) return "undefined";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
+
 function motionUsage(): string {
   return [
     "用法:",
-    "  /motion <移动行为> [key=value ...]   设置移动行为",
-    "  /motion <defend|auto_eat> [key=...] 切换叠加状态",
-    "  /stop        停止移动（回 idle，叠加状态保留）",
-    "  /clear       清空所有状态",
-    "  /off <名称>  关闭指定叠加状态",
-    "  /status      查看当前状态",
-    "  /behaviors   列出所有行为",
-    "",
-    "移动行为: " + MOVEMENT_BEHAVIOR_NAMES.join(", "),
-    "叠加状态: " + OVERLAY_NAMES.join(", "),
+    '  /motion {"bundle":"task.follow_player","params":{"target":"Steve","distance":3}}',
+    '  /motion task.follow_player target=Steve distance=3',
+    "  /motion <defend|auto_eat> [key=value ...]  切换叠加状态",
+    "  /stop              停止移动（回 idle，叠加状态保留）",
+    "  /stopmission       停止当前任务",
+    "  /clear             清空所有状态",
+    "  /off <名称>        关闭指定叠加状态",
+    "  /status            查看当前状态 + MemoryBus + Snapshot",
+    "  /behaviors         列出所有任务 bundle",
+    "  /missions          列出所有任务 bundle（含当前任务）",
   ].join("\n");
 }

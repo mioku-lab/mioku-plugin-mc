@@ -50,4 +50,10 @@ export class ExploreBehavior extends Behavior {
     }
     this.exploring = false;
   }
+
+  contributesState(): Record<string, unknown> {
+    return {
+      exploring: this.exploring,
+    };
+  }
 }

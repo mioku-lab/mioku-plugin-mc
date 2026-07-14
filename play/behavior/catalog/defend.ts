@@ -56,4 +56,12 @@ export class SelfDefenseBehavior extends Behavior {
       // ignore
     }
   }
+
+  contributesState(): Record<string, unknown> {
+    return {
+      radius: this.radius,
+      armed: this.armed,
+      attacking: this.attacking,
+    };
+  }
 }

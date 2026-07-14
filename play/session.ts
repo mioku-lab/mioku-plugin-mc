@@ -5,7 +5,23 @@ import { PlayHistory } from "./ai/history";
 import { buildGoodbyePrompt } from "./ai/prompt";
 import type { BehaviorEngine } from "./behavior/engine";
 import { withTimeoutMs } from "./util/async";
-import type { BehaviorSpec, GroupBinding, PlayServerConfig, PlaySessionStatus } from "./types";
+import { MemoryBus } from "./state/memory-bus";
+import { CooldownRegistry } from "./state/cooldowns";
+import { EntityScanner } from "./state/sensors/entity-scanner";
+import { SnapshotCollector, type BehaviorSnapshot } from "./state/snapshot";
+import { TaskRegistry } from "./missions/registry";
+import {
+  MissionController,
+  type SwitchResult,
+  type MissionSpec,
+  type BundleId,
+} from "./missions/mission-controller";
+import { followPlayerBundle } from "./missions/bundles/follow-player";
+import { gatherResourceBundle } from "./missions/bundles/gather-resource";
+import { farmMobsBundle } from "./missions/bundles/farm-mobs";
+import { exploreBundle } from "./missions/bundles/explore";
+import { idleWanderBundle } from "./missions/bundles/idle-wander";
+import type { GroupBinding, PlayServerConfig, PlaySessionStatus } from "./types";
 
 export interface PlaySessionCompanion {
   start?: () => void;
@@ -23,12 +39,18 @@ export class PlaySession {
   readonly server: PlayServerConfig;
   readonly binding: GroupBinding;
   readonly bus = new PlayBus();
+  readonly memory = new MemoryBus();
+  readonly cooldowns = new CooldownRegistry();
+  readonly taskRegistry = new TaskRegistry();
   readonly history: PlayHistory;
   readonly controller: BotController;
+  private readonly scanner: EntityScanner;
   startedAt = Date.now();
   connected = false;
   debug = false;
   engine?: BehaviorEngine;
+  private missionController?: MissionController;
+  private snapshotCollector?: SnapshotCollector;
   private stopped = false;
   private watchdog?: NodeJS.Timeout;
   private companions: PlaySessionCompanion[] = [];
@@ -45,6 +67,19 @@ export class PlaySession {
       bus: this.bus,
       log: (msg) => ctx.ctx.logger.info(`[MC/play] ${msg}`),
     });
+    this.scanner = new EntityScanner({
+      bus: this.memory,
+      bot: () => this.controller.bot,
+    });
+    this.registerDefaultBundles();
+  }
+
+  private registerDefaultBundles(): void {
+    this.taskRegistry.register(followPlayerBundle);
+    this.taskRegistry.register(gatherResourceBundle);
+    this.taskRegistry.register(farmMobsBundle);
+    this.taskRegistry.register(exploreBundle);
+    this.taskRegistry.register(idleWanderBundle);
   }
 
   addCompanion(companion: PlaySessionCompanion): void {
@@ -63,6 +98,7 @@ export class PlaySession {
     await this.controller.connect();
     await this.controller.waitForChunksLoaded();
     this.connected = true;
+    this.scanner.start();
     this.startWatchdog();
 
     for (const companion of this.companions) companion.start?.();
@@ -96,6 +132,7 @@ export class PlaySession {
     if (this.stopped) return;
     this.stopped = true;
     this.stopWatchdog();
+    this.scanner.stop();
 
     for (const companion of this.companions) companion.stop?.();
 
@@ -105,6 +142,7 @@ export class PlaySession {
     }
     this.connected = false;
     this.bus.removeAll();
+    this.memory.clear();
 
     const ctx = this.pluginCtx;
     ctx.ctx.logger.info(`[MC/play] 已离开 ${this.server.name} (reason: ${reason})`);
@@ -114,9 +152,11 @@ export class PlaySession {
     if (this.stopped) return;
     this.connected = false;
     this.stopWatchdog();
+    this.scanner.stop();
     for (const companion of this.companions) companion.stop?.();
     this.stopped = true;
     this.bus.removeAll();
+    this.memory.clear();
 
     const ctx = this.pluginCtx;
     ctx.ctx.logger.warn(`[MC/play] ${this.server.name} 异常断开: ${reason}`);
@@ -190,12 +230,8 @@ export class PlaySession {
     return true;
   }
 
-  setMovement(spec: BehaviorSpec): void {
-    this.engine?.setMovement(spec);
-  }
-
   stopMovement(): void {
-    this.engine?.stopMovement();
+    this.engine?.stopMission();
   }
 
   toggleOverlay(name: string, enabled: boolean, params?: Record<string, string>): boolean {
@@ -215,6 +251,74 @@ export class PlaySession {
     const ctx = this.buildBehaviorContext();
     if (!engine || !ctx) return [];
     return engine.getStates(ctx);
+  }
+
+  getMemorySnapshot(): Record<string, { value: unknown; ageMs: number }> {
+    return this.memory.snapshot();
+  }
+
+  getBehaviorSnapshot(): BehaviorSnapshot | null {
+    if (!this.engine) return null;
+    if (!this.snapshotCollector) {
+      this.snapshotCollector = new SnapshotCollector({
+        bus: this.memory,
+        engine: this.engine,
+        cooldowns: this.cooldowns,
+        getContext: () => this.buildBehaviorContext(),
+      });
+    }
+    return this.snapshotCollector.collect();
+  }
+
+  listBundles(): Array<{ id: string; description: string; mode: string | null }> {
+    return this.taskRegistry.list();
+  }
+
+  startMission(spec: MissionSpec): SwitchResult {
+    if (!this.engine) {
+      return {
+        kind: "rejected",
+        reason: "no_bot_session",
+        detail: "engine 尚未初始化",
+      };
+    }
+    if (!this.missionController) {
+      this.missionController = new MissionController({
+        registry: this.taskRegistry,
+        engine: this.engine,
+        bus: this.memory,
+        buildContext: () => this.buildBehaviorContext(),
+        log: (msg) => this.pluginCtx.ctx.logger.info(`[MC/play] ${msg}`),
+      });
+    }
+    return this.missionController.startMission(spec);
+  }
+
+  stopMission(reason?: string): SwitchResult {
+    if (!this.missionController) {
+      return {
+        kind: "rejected",
+        reason: "rejected_by_engine",
+        detail: "没有进行中的任务",
+      };
+    }
+    return this.missionController.stopMission(reason);
+  }
+
+  getCurrentMission(): import("./state/mode").MissionState | null {
+    return this.missionController?.getCurrentMission() ?? null;
+  }
+
+  private lastSwitchResult: SwitchResult | null = null;
+
+  recordSwitchResult(result: SwitchResult): void {
+    this.lastSwitchResult = result;
+  }
+
+  consumeLastSwitchResult(): SwitchResult | null {
+    const r = this.lastSwitchResult;
+    this.lastSwitchResult = null;
+    return r;
   }
 
   private buildBehaviorContext(): import("./behavior/base-behavior").BehaviorContext | null {

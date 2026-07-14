@@ -45,4 +45,11 @@ export class MlgFallBehavior extends Behavior {
       }
     })();
   }
+
+  contributesState(): Record<string, unknown> {
+    return {
+      active: true,
+      waterBucketPlaced: this.placed,
+    };
+  }
 }

@@ -1,4 +1,5 @@
 import type { PlayServerConfig } from "../types";
+import type { BehaviorSnapshot } from "../state/snapshot";
 
 export function buildGoodbyePrompt(persona: string, server: PlayServerConfig): string {
   const lines: string[] = [];
@@ -15,19 +16,6 @@ export function buildGoodbyePrompt(persona: string, server: PlayServerConfig): s
   return lines.join("\n");
 }
 
-export interface BotStatus {
-  health: number;
-  food: number;
-  position: string;
-  dimension: string;
-  heldItem: string;
-  nearbyHostiles: string[];
-  nearbyPlayers: string[];
-  currentBehavior: string | null;
-  elapsedMs: number;
-  maxMs: number;
-}
-
 export interface MainPromptInput {
   persona: string;
   serverName: string;
@@ -35,9 +23,17 @@ export interface MainPromptInput {
   groupId: number;
   gameLines: string[];
   qqLines: string[];
-  status: BotStatus;
+  snapshot: BehaviorSnapshot;
   trigger: string;
   budgetWarn: boolean;
+  elapsedMs: number;
+  maxMs: number;
+}
+
+export interface WorkPromptInput {
+  action: string;
+  snapshot: BehaviorSnapshot;
+  lastBundle: string | null;
 }
 
 function formatDuration(ms: number): string {
@@ -47,8 +43,26 @@ function formatDuration(ms: number): string {
   return `${m}m${s.toString().padStart(2, "0")}s`;
 }
 
+function formatPosition(snap: BehaviorSnapshot): string {
+  const p = snap.position;
+  if (!p) return "unknown";
+  return `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
+}
+
+function describeBundle(snap: BehaviorSnapshot): string {
+  const active = snap.activeBehaviors
+    .filter((b) => b.active && (b.category === "movement" || b.category === "combat"))
+    .map((b) => b.name);
+  if (active.length === 0) return "idle";
+  return active.join("+");
+}
+
+function heldItemName(snap: BehaviorSnapshot): string {
+  return snap.heldItem?.name ?? "empty";
+}
+
 export function buildMainPrompt(input: MainPromptInput): string {
-  const { status, persona } = input;
+  const { snapshot, persona } = input;
   const lines: string[] = [];
 
   if (persona) {
@@ -68,15 +82,18 @@ export function buildMainPrompt(input: MainPromptInput): string {
     input.qqLines.length > 0 ? input.qqLines.join("\n") : "(no recent messages)",
     "",
     "## Your Status",
-    `health=${status.health}/20 food=${status.food}/20 position=${status.position} dimension=${status.dimension}`,
-    `held=${status.heldItem} nearby_hostiles=[${status.nearbyHostiles.join(", ")}] nearby_players=[${status.nearbyPlayers.join(", ")}]`,
-    `current_behavior=${status.currentBehavior ?? "none"}`,
-    `elapsed=${formatDuration(status.elapsedMs)} / max=${formatDuration(status.maxMs)}` +
+    `mode=${snapshot.mode.current} active=${describeBundle(snap(snapshot))}`,
+    `health=${snapshot.vitals.health}/20 food=${snapshot.vitals.food}/20 oxygen=${snapshot.vitals.oxygen}/20`,
+    `position=${formatPosition(snapshot)} dimension=${snapshot.dimension}`,
+    `held=${heldItemName(snapshot)}`,
+    `nearby_hostiles=[${snapshot.sensor.nearbyHostileNames.join(", ")}] nearby_players=[${snapshot.sensor.nearbyPlayerNames.join(", ")}]`,
+    `cooldowns=${Object.keys(snapshot.cooldowns).length} pending`,
+    `elapsed=${formatDuration(input.elapsedMs)} / max=${formatDuration(input.maxMs)}` +
       (input.budgetWarn ? "  (time almost up - wrap up, say goodbye in chat, then [exit])" : ""),
     "",
     "## Output Format (STRICT)",
     "- Plain text lines -> sent to in-game chat, one per line. Keep them short and in-character.",
-    "- [action:<natural language>] -> hands control to the behavior engine. ONE active action at a time;",
+    "- [action:<natural language>] -> hands control to the work model. ONE active action at a time;",
     "  it persists until you emit a new [action] or [exit]. Examples:",
     "  [action:stay near Steve and help him fight mobs]",
     "  [action:gather wood for a bit]",
@@ -91,31 +108,32 @@ export function buildMainPrompt(input: MainPromptInput): string {
   return lines.join("\n");
 }
 
-export interface WorkPromptInput {
-  action: string;
-  status: BotStatus;
-  lastBehavior: string | null;
+function snap(s: BehaviorSnapshot): BehaviorSnapshot {
+  return s;
 }
 
 export function buildWorkPrompt(input: WorkPromptInput): string {
-  const { status } = input;
+  const { snapshot, action, lastBundle } = input;
   return [
-    "You translate a high-level intent into ONE movement behavior for a Minecraft bot.",
-    "Available behaviors (movement only; combat/eating are handled automatically as overlays):",
-    "- idle",
-    "- follow target=<playerName> distance=<blocks, default 3>",
-    "- gather resource=<wood|stone|coal|iron>",
-    "- farm_mobs                             (hunt passive mobs for food/drops)",
-    "- explore                                (wander to load new chunks)",
+    "You translate a high-level intent into ONE task bundle for a Minecraft bot.",
+    "Available bundles (use JSON; combat/eating are handled automatically as overlays):",
+    '- {"bundle":"task.idle_wander"}                                  (default fallback)',
+    '- {"bundle":"task.follow_player","params":{"target":"<name>","distance":<blocks>}}',
+    '- {"bundle":"task.gather_resource","params":{"resource":"wood|stone|coal|iron"}}',
+    '- {"bundle":"task.farm_mobs"}                                    (hunt passive mobs)',
+    '- {"bundle":"task.explore"}                                      (wander to load chunks)',
     "",
-    "Notes: 'defend' and 'auto_eat' are always-on overlays and are NOT movement behaviors -",
-    "do not output them. To follow a player AND fight, just use 'follow'; combat activates automatically.",
+    "Notes: 'defend' and 'auto_eat' are always-on overlays and are NOT bundles.",
+    "To follow a player AND fight, just use task.follow_player; combat activates automatically.",
     "",
-    `Environment: health=${status.health}/20 food=${status.food}/20 position=${status.position} nearby_hostiles=[${status.nearbyHostiles.join(", ")}] nearby_players=[${status.nearbyPlayers.join(", ")}] held=${status.heldItem}`,
-    `Previous behavior: ${input.lastBehavior ?? "none"}`,
-    `Intent: "${input.action}"`,
+    `Environment: mode=${snapshot.mode.current} active=${describeBundle(snapshot)}`,
+    `health=${snapshot.vitals.health}/20 food=${snapshot.vitals.food}/20 position=${formatPosition(snapshot)}`,
+    `nearby_hostiles=[${snapshot.sensor.nearbyHostileNames.join(", ")}] nearby_players=[${snapshot.sensor.nearbyPlayerNames.join(", ")}]`,
+    `held=${heldItemName(snapshot)}`,
+    `Previous bundle: ${lastBundle ?? "none"}`,
+    `Intent: "${action}"`,
     "",
-    "Reply with exactly ONE line: behavior=<name> key=value ...",
-    "If the intent is unclear or no change is needed, reply: behavior=idle",
+    'Reply with exactly ONE JSON object on a single line, e.g. {"bundle":"task.follow_player","params":{"target":"Steve","distance":3}}.',
+    'If the intent is unclear, reply: {"bundle":"task.idle_wander"}.',
   ].join("\n");
 }

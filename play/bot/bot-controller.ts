@@ -7,6 +7,9 @@ import { resolveMinecraftEndpoint } from "../util/endpoint";
 import { withTimeoutMs } from "../util/async";
 import { PlayBus, type GameChatLine } from "./play-bus";
 
+const PVP_FOLLOW_RANGE = 2;
+const PVP_ATTACK_RANGE = 3.0;
+
 export interface BotControllerOptions {
   server: PlayServerConfig;
   bus: PlayBus;
@@ -180,11 +183,24 @@ export class BotController {
       bot.pathfinder.setMovements(this.movements);
       bot.pathfinder.thinkTimeout = 5_000;
       bot.pathfinder.tickTimeout = 40;
+      this.injectPvpMovements(bot);
       this.log(
         `Movements 已配置: canDig=${this.movements.canDig} parkour=${this.movements.allowParkour} sprint=${this.movements.allowSprinting} thinkTimeout=${bot.pathfinder.thinkTimeout}`,
       );
     } catch (err) {
       this.log(`初始化 Movements 失败: ${err}`);
+    }
+  }
+
+  private injectPvpMovements(bot: Bot): void {
+    const pvp = bot.pvp;
+    if (!pvp || !this.movements) return;
+    try {
+      pvp.movements = this.movements;
+      pvp.followRange = PVP_FOLLOW_RANGE;
+      pvp.attackRange = PVP_ATTACK_RANGE;
+    } catch (err) {
+      this.log(`注入 pvp.movements 失败: ${err}`);
     }
   }
 

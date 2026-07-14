@@ -1,9 +1,8 @@
 import type { PlaySession } from "../session";
 import type { PlayPluginContext } from "../context";
 import type { GameChatLine } from "../bot/play-bus";
-import { buildMainPrompt, type BotStatus } from "./prompt";
+import { buildMainPrompt } from "./prompt";
 import { parseMainOutput } from "./output-parser";
-import { buildBotStatus } from "../util/status";
 import { withTimeoutMs } from "../util/async";
 
 export interface MainLoopOptions {
@@ -104,11 +103,12 @@ export class MainLoop {
       const config = this.pluginCtx.getPlayConfig();
       if (!main || !this.session.controller.bot) return;
 
-      const status = this.buildStatus();
-      if (!status) return;
+      const snapshot = this.session.getBehaviorSnapshot();
+      if (!snapshot) return;
+      const elapsedMs = Date.now() - this.session.startedAt;
+      const maxMs = this.session.server.maxPlayMs;
       const persona = main.getPrompt("persona") ?? "";
-      const budgetWarn =
-        status.elapsedMs >= status.maxMs * config.maxPlayBudgetWarnRatio;
+      const budgetWarn = elapsedMs >= maxMs * config.maxPlayBudgetWarnRatio;
 
       const prompt = buildMainPrompt({
         persona,
@@ -117,14 +117,23 @@ export class MainLoop {
         groupId: this.session.binding.groupId,
         gameLines: this.formatGameLines(),
         qqLines: this.session.history.getQqLines(),
-        status,
+        snapshot,
         trigger,
         budgetWarn,
+        elapsedMs,
+        maxMs,
       });
 
       const messages: any[] = [];
       if (this.lastAssistantOutput) {
         messages.push({ role: "assistant", content: this.lastAssistantOutput });
+      }
+      const lastResult = this.session.consumeLastSwitchResult();
+      if (lastResult) {
+        messages.push({
+          role: "user",
+          content: this.formatSwitchFeedback(lastResult),
+        });
       }
       messages.push({
         role: "user",
@@ -210,15 +219,10 @@ export class MainLoop {
     });
   }
 
-  private buildStatus(): BotStatus | null {
-    const bot = this.session.controller.bot;
-    if (!bot) return null;
-    const behaviorLabel = this.getBehaviorLabel?.() ?? this.lastAction;
-    return buildBotStatus(
-      bot,
-      behaviorLabel,
-      Date.now() - this.session.startedAt,
-      this.session.server.maxPlayMs,
-    );
+  private formatSwitchFeedback(result: import("../missions/mission-controller").SwitchResult): string {
+    if (result.kind === "applied") {
+      return `[mission system] 上次任务已接受: ${result.bundleId} (mission=${result.missionId.slice(0, 8)})。`;
+    }
+    return `[mission system] 上次任务被拒绝: ${result.reason} - ${result.detail}\n请检查 bundle id 与参数 schema 后重试（可用 \`/missions\` 查看清单），或选 task.idle_wander 兜底。`;
   }
 }

@@ -1,5 +1,5 @@
 import { Behavior, type BehaviorContext } from "../base-behavior";
-import { goals } from "mineflayer-pathfinder";
+import { GoalXZ } from "../../path-engine";
 
 const EXPLORE_HALF_RANGE = 12;
 const GOTO_TIMEOUT_MS = 10_000;
@@ -11,6 +11,8 @@ export class ExploreBehavior extends Behavior {
 
   onTick(ctx: BehaviorContext): void {
     if (this.exploring) return;
+    const engine = ctx.bot.pathEngine;
+    if (!engine) return;
     const pos = ctx.bot.entity?.position;
     if (!pos) return;
     const gx = Math.floor(pos.x + (Math.random() - 0.5) * EXPLORE_HALF_RANGE * 2);
@@ -18,12 +20,12 @@ export class ExploreBehavior extends Behavior {
     this.exploring = true;
     ctx.log(`explore -> (${gx},${gz})`);
 
-    const gotoPromise = ctx.bot.pathfinder.goto(new goals.GoalXZ(gx, gz));
+    const gotoPromise = engine.goto(new GoalXZ(gx, gz));
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       try {
-        ctx.bot.pathfinder.stop();
+        engine.stop();
       } catch {
         // ignore
       }
@@ -33,13 +35,13 @@ export class ExploreBehavior extends Behavior {
       .then(() => {
         if (!timedOut) ctx.log(`explore 到达 (${gx},${gz})`);
       })
-      .catch((e) => {
+      .catch((e: any) => {
         ctx.log(`explore 放弃 (${gx},${gz}): ${e}`);
       })
       .finally(() => {
         clearTimeout(timer);
         try {
-          ctx.bot.pathfinder.setGoal(null);
+          engine.setGoal(null);
         } catch {
           // ignore
         }
@@ -49,7 +51,7 @@ export class ExploreBehavior extends Behavior {
 
   onStop(ctx: BehaviorContext): void {
     try {
-      ctx.bot.pathfinder.stop();
+      ctx.bot.pathEngine?.stop();
     } catch {
       // ignore
     }

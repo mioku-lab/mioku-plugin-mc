@@ -1,9 +1,9 @@
 import type { Bot } from "mineflayer";
-import type { Movements } from "mineflayer-pathfinder";
+import type { MovementsConfig } from "../path-engine";
 
 export interface BehaviorContext {
   bot: Bot;
-  movements: Movements;
+  movements: MovementsConfig;
   log: (msg: string) => void;
 }
 

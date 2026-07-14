@@ -1,5 +1,5 @@
 import { Behavior, type BehaviorContext } from "../base-behavior";
-import { goals } from "mineflayer-pathfinder";
+import { GoalGetToBlock } from "../../path-engine";
 import { equipToolFor } from "../../util/inventory";
 
 const RESOURCE_MATCHERS: Record<string, (name: string) => boolean> = {
@@ -32,19 +32,22 @@ export class GatherResourceBehavior extends Behavior {
     } as any);
     if (!block) return;
 
+    const engine = ctx.bot.pathEngine;
+    if (!engine) return;
+
     this.mining = true;
     void (async () => {
       const timer = setTimeout(() => {
         try {
-          ctx.bot.pathfinder.stop();
+          engine.stop();
         } catch {
           // ignore
         }
       }, 12_000);
       try {
         await equipToolFor(ctx.bot, this.resource);
-        await ctx.bot.pathfinder.goto(
-          new goals.GoalGetToBlock(block.position.x, block.position.y, block.position.z),
+        await engine.goto(
+          new GoalGetToBlock(block.position.x, block.position.y, block.position.z),
         );
         await ctx.bot.dig(block);
       } catch (e) {
@@ -52,7 +55,7 @@ export class GatherResourceBehavior extends Behavior {
       } finally {
         clearTimeout(timer);
         try {
-          ctx.bot.pathfinder.setGoal(null);
+          engine.setGoal(null);
         } catch {
           // ignore
         }
@@ -63,7 +66,7 @@ export class GatherResourceBehavior extends Behavior {
 
   onStop(ctx: BehaviorContext): void {
     try {
-      ctx.bot.pathfinder.stop();
+      ctx.bot.pathEngine?.stop();
     } catch {
       // ignore
     }

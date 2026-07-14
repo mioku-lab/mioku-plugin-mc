@@ -20,7 +20,7 @@ export class MlgFallBehavior extends Behavior {
 
   onStart(ctx: BehaviorContext): void {
     this.placed = false;
-    try { ctx.bot.pathfinder.setGoal(null); } catch { /* ignore */ }
+    try { ctx.bot.pathEngine?.setGoal(null); } catch { /* ignore */ }
   }
 
   onTick(ctx: BehaviorContext): void {

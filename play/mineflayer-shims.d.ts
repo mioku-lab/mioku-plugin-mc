@@ -12,3 +12,11 @@ declare module "minecraft-data" {
   function minecraftData(version: string): IndexedData;
   export default minecraftData;
 }
+
+declare module "mineflayer" {
+  interface Bot {
+    pathEngine?: any;
+    combat?: any;
+    pvp?: any;
+  }
+}

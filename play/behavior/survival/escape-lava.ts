@@ -18,7 +18,7 @@ export class EscapeLavaBehavior extends Behavior {
   }
 
   onStart(ctx: BehaviorContext): void {
-    try { ctx.bot.pathfinder.setGoal(null); } catch { /* ignore */ }
+    try { ctx.bot.pathEngine?.setGoal(null); } catch { /* ignore */ }
   }
 
   onTick(ctx: BehaviorContext): void {

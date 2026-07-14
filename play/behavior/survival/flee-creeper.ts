@@ -1,5 +1,5 @@
 import { Behavior, type BehaviorContext } from "../base-behavior";
-import { goals } from "mineflayer-pathfinder";
+import { GoalXZ } from "../../path-engine";
 import { nearestCreeper } from "../../util/entities";
 import { hasShield } from "../../util/inventory";
 
@@ -20,6 +20,8 @@ export class FleeCreeperBehavior extends Behavior {
   onTick(ctx: BehaviorContext): void {
     if (this.fleeing) return;
     const bot = ctx.bot;
+    const engine = bot.pathEngine;
+    if (!engine) return;
     const creeper = nearestCreeper(bot, CREEPER_FLEE_RADIUS + 2);
     if (!creeper) return;
     const pos = bot.entity?.position;
@@ -34,20 +36,20 @@ export class FleeCreeperBehavior extends Behavior {
     ctx.log(`flee_creeper -> (${tx},${tz})`);
     const timer = setTimeout(() => {
       try {
-        bot.pathfinder.stop();
+        engine.stop();
       } catch {
         // ignore
       }
     }, FLEE_TIMEOUT_MS);
-    bot.pathfinder
-      .goto(new goals.GoalXZ(tx, tz))
+    engine
+      .goto(new GoalXZ(tx, tz))
       .catch(() => {
         // ignore
       })
       .finally(() => {
         clearTimeout(timer);
         try {
-          bot.pathfinder.setGoal(null);
+          engine.setGoal(null);
         } catch {
           // ignore
         }
@@ -57,7 +59,7 @@ export class FleeCreeperBehavior extends Behavior {
 
   onStop(ctx: BehaviorContext): void {
     try {
-      ctx.bot.pathfinder.stop();
+      ctx.bot.pathEngine?.stop();
     } catch {
       // ignore
     }

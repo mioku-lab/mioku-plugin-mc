@@ -1,11 +1,15 @@
 import { createBot, type Bot } from "mineflayer";
-import { pathfinder, Movements } from "mineflayer-pathfinder";
-import { plugin as pvpPlugin } from "mineflayer-pvp";
 import mcData from "minecraft-data";
 import type { PlayServerConfig } from "../types";
 import { resolveMinecraftEndpoint } from "../util/endpoint";
 import { withTimeoutMs } from "../util/async";
 import { PlayBus, type GameChatLine } from "./play-bus";
+import {
+  PathEngine,
+  DEFAULT_MOVEMENTS,
+  type MovementsConfig,
+} from "../path-engine";
+import { Combat } from "../combat";
 
 const PVP_FOLLOW_RANGE = 2;
 const PVP_ATTACK_RANGE = 3.0;
@@ -21,7 +25,8 @@ export class BotController {
   readonly server: PlayServerConfig;
   private readonly bus: PlayBus;
   private readonly log: (msg: string) => void;
-  private movements?: Movements;
+  private pathEngine?: PathEngine;
+  private combat?: Combat;
   private joinedOnce = false;
 
   constructor(opts: BotControllerOptions) {
@@ -43,13 +48,6 @@ export class BotController {
     } as any);
     this.bot = bot;
 
-    try {
-      bot.loadPlugin(pathfinder);
-      bot.loadPlugin(pvpPlugin);
-    } catch (err) {
-      this.log(`加载 mineflayer 插件失败: ${err}`);
-    }
-
     this.attachListeners(bot);
 
     return new Promise<void>((resolve, reject) => {
@@ -63,7 +61,7 @@ export class BotController {
       const onSpawn = () => {
         if (settled) return;
         settled = true;
-        this.setupMovements();
+        this.setupPathEngine();
         clean();
         resolve();
       };
@@ -94,7 +92,7 @@ export class BotController {
 
   private attachListeners(bot: Bot): void {
     bot.on("spawn", () => {
-      this.setupMovements();
+      this.setupPathEngine();
       this.bus.emit("spawn");
       if (!this.joinedOnce) {
         this.joinedOnce = true;
@@ -164,106 +162,32 @@ export class BotController {
       this.log(`bot 错误: ${err}`);
       this.bus.emit("error", err);
     });
-    this.setupPathfinderDebug(bot);
   }
 
-  private setupPathfinderDebug(bot: Bot): void {
-    (bot as any).on("path_update", (results: any) => {
-      const status = results?.status ?? "?";
-      const len = results?.path?.length ?? 0;
-      this.log(`[pathfinder] path_update: status=${status}, len=${len}`);
-    });
-    (bot as any).on("goal_reached", () => {
-      this.log(`[pathfinder] goal_reached`);
-    });
-    let lastPos: { x: number; y: number; z: number } | null = null;
-    let lastPosAt = 0;
-    bot.on("physicTick", () => {
-      const entity = bot.entity;
-      if (!entity?.position) return;
-      if (!(bot.controlState as any).forward) {
-        lastPos = null;
-        return;
-      }
-      const now = Date.now();
-      const pos = entity.position;
-      if (lastPos && now - lastPosAt > 2000) {
-        const moved = Math.hypot(pos.x - lastPos.x, pos.y - lastPos.y, pos.z - lastPos.z);
-        if (moved < 0.5) {
-          const yaw = entity.yaw;
-          const dx = -Math.sin(yaw);
-          const dz = -Math.cos(yaw);
-          const dirX = Math.abs(dx) >= Math.abs(dz) ? Math.sign(dx) : 0;
-          const dirZ = Math.abs(dz) > Math.abs(dx) ? Math.sign(dz) : 0;
-          const f = bot.blockAt(pos.offset(dirX, 0, dirZ)) as any;
-          const a = bot.blockAt(pos.offset(dirX, 1, dirZ)) as any;
-          const fb = f ? `${f.name}/${f.boundingBox}` : "?";
-          const ab = a ? `${a.name}/${a.boundingBox}` : "?";
-          this.log(`[pathfinder] stuck 2s: moved=${moved.toFixed(2)}, front=${fb}, above=${ab}`);
-          if (f?.boundingBox === "block" && a?.boundingBox === "empty") {
-            try {
-              (bot as any).pathfinder.setGoal(null);
-              bot.setControlState("jump", true);
-              bot.setControlState("forward", false);
-              setTimeout(() => {
-                try { bot.setControlState("forward", true); } catch {}
-                setTimeout(() => {
-                  try {
-                    bot.setControlState("jump", false);
-                    bot.setControlState("forward", false);
-                  } catch {}
-                }, 600);
-              }, 200);
-              this.log(`[pathfinder] 贴脸先跳再往前触发`);
-            } catch {}
-          }
-        }
-        lastPosAt = now;
-      }
-      lastPos = { x: pos.x, y: pos.y, z: pos.z };
-    });
-  }
-
-  private emitChat(line: GameChatLine): void {
-    this.bus.emit("chat", line);
-  }
-
-  private setupMovements(): void {
+  private setupPathEngine(): void {
     const bot = this.bot;
     if (!bot) return;
     try {
-      this.movements = new Movements(bot);
-      this.movements.canDig = true;
-      this.movements.allowSprinting = true;
-      this.movements.allowParkour = true;
-      this.movements.allow1by1towers = true;
-      this.movements.maxDropDown = 4;
-      bot.pathfinder.setMovements(this.movements);
-      bot.pathfinder.thinkTimeout = 5_000;
-      bot.pathfinder.tickTimeout = 40;
-      this.injectPvpMovements(bot);
+      const movements: MovementsConfig = { ...DEFAULT_MOVEMENTS };
+      this.pathEngine = new PathEngine(bot);
+      this.pathEngine.setMovements(movements);
+      this.pathEngine.thinkTimeout = 5_000;
+      this.pathEngine.tickTimeout = 40;
+      (bot as any).pathEngine = this.pathEngine;
+      this.combat = new Combat(bot, movements);
+      this.combat.followRange = PVP_FOLLOW_RANGE;
+      this.combat.attackRange = PVP_ATTACK_RANGE;
+      (bot as any).combat = this.combat;
       this.log(
-        `Movements 已配置: canDig=${this.movements.canDig} parkour=${this.movements.allowParkour} sprint=${this.movements.allowSprinting} thinkTimeout=${bot.pathfinder.thinkTimeout}`,
+        `PathEngine + Combat 已初始化 canDig=${movements.canDig} parkour=${movements.allowParkour} sprint=${movements.allowSprinting} tower=${movements.allow1by1towers} thinkTimeout=${this.pathEngine.thinkTimeout}`,
       );
     } catch (err) {
-      this.log(`初始化 Movements 失败: ${err}`);
+      this.log(`初始化 PathEngine 失败: ${err}`);
     }
   }
 
-  private injectPvpMovements(bot: Bot): void {
-    const pvp = bot.pvp;
-    if (!pvp || !this.movements) return;
-    try {
-      pvp.movements = this.movements;
-      pvp.followRange = PVP_FOLLOW_RANGE;
-      pvp.attackRange = PVP_ATTACK_RANGE;
-    } catch (err) {
-      this.log(`注入 pvp.movements 失败: ${err}`);
-    }
-  }
-
-  getMovements(): Movements | undefined {
-    return this.movements;
+  getMovements(): MovementsConfig | undefined {
+    return this.pathEngine?.movements;
   }
 
   async waitForChunksLoaded(): Promise<void> {
@@ -305,6 +229,10 @@ export class BotController {
     setTimeout(run, 2_000);
   }
 
+  private emitChat(line: GameChatLine): void {
+    this.bus.emit("chat", line);
+  }
+
   chat(message: string): void {
     const bot = this.bot;
     if (!bot) return;
@@ -318,7 +246,11 @@ export class BotController {
   async disconnect(reason = "leaving"): Promise<void> {
     const bot = this.bot;
     if (!bot) return;
-    this.bot = null;
+    try {
+      this.pathEngine?.stop();
+    } catch {
+      // ignore
+    }
     try {
       bot.quit(reason);
     } catch {

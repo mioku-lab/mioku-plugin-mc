@@ -1,5 +1,5 @@
 import { Behavior, type BehaviorContext } from "../base-behavior";
-import { goals } from "mineflayer-pathfinder";
+import { GoalFollow } from "../../path-engine";
 import { entityDistance } from "../../util/entities";
 
 export class FollowPlayerBehavior extends Behavior {
@@ -22,6 +22,7 @@ export class FollowPlayerBehavior extends Behavior {
 
   onTick(ctx: BehaviorContext): void {
     const bot = ctx.bot;
+    const engine = bot.pathEngine;
     const player = bot.players[this.target]?.entity;
     if (!player) {
       if (!this.warnedNoEntity) {
@@ -32,10 +33,11 @@ export class FollowPlayerBehavior extends Behavior {
     }
     this.warnedNoEntity = false;
     this.lastDist = entityDistance(bot.entity, player);
-    if (bot.pathfinder.isMoving()) return;
+    if (!engine) return;
+    if (engine.isMoving()) return;
     if (this.lastDist > this.distance + 1) {
       try {
-        bot.pathfinder.setGoal(new goals.GoalFollow(player, this.distance), true);
+        engine.setGoal(new GoalFollow(player, this.distance), true);
         const now = Date.now();
         if (now - this.lastGoalAt > 3_000) {
           ctx.log(`follow -> ${this.target} (dist=${this.lastDist.toFixed(1)}, goal=${this.distance})`);
@@ -49,7 +51,7 @@ export class FollowPlayerBehavior extends Behavior {
 
   onStop(ctx: BehaviorContext): void {
     try {
-      ctx.bot.pathfinder.stop();
+      ctx.bot.pathEngine?.stop();
     } catch {
       // ignore
     }

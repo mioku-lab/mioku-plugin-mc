@@ -11,11 +11,13 @@ export class FarmMobsBehavior extends Behavior {
 
   async onTick(ctx: BehaviorContext): Promise<void> {
     if (this.hunting) return;
+    const combat = ctx.bot.combat;
+    if (!combat) return;
     const target = nearestPassiveMob(ctx.bot, HUNT_RADIUS);
     if (!target) return;
     this.hunting = true;
     await equipSword(ctx.bot);
-    ctx.bot.pvp
+    combat
       .attack(target)
       .catch(() => {
         // ignore
@@ -27,7 +29,7 @@ export class FarmMobsBehavior extends Behavior {
 
   onStop(ctx: BehaviorContext): void {
     try {
-      ctx.bot.pvp.stop();
+      ctx.bot.combat?.stop();
     } catch {
       // ignore
     }

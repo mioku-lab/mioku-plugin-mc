@@ -71,6 +71,7 @@ export class BehaviorEngine {
 
   setMissionBehaviors(missionId: string, behaviors: Behavior[]): void {
     this.missionId = missionId;
+    for (const b of behaviors) b.enabled = true;
     this.missionBehaviors = behaviors;
   }
 
@@ -129,7 +130,7 @@ export class BehaviorEngine {
     list.push(...this.survival);
     list.push(...this.overlays);
     for (const b of this.missionBehaviors) list.push(b);
-    if (this.missionBehaviors.length === 0 && this.movement) list.push(this.movement);
+    if (this.movement) list.push(this.movement);
     return list;
   }
 
@@ -157,7 +158,7 @@ export class BehaviorEngine {
     for (const b of this.survival) candidates.push(b);
     for (const b of this.overlays) candidates.push(b);
     for (const b of this.missionBehaviors) candidates.push(b);
-    if (this.missionBehaviors.length === 0 && this.movement) candidates.push(this.movement);
+    if (!this.missionHasActive(ctx) && this.movement) candidates.push(this.movement);
 
     let winner: Behavior | null = null;
     for (const b of candidates) {
@@ -209,11 +210,19 @@ export class BehaviorEngine {
     }
   }
 
+  private missionHasActive(ctx: BehaviorContext): boolean {
+    for (const b of this.missionBehaviors) {
+      if (!b.effectivelyEnabled) continue;
+      if (this.safeActive(b, ctx)) return true;
+    }
+    return false;
+  }
+
   private computeMode(): BehaviorMode {
     const ctx = this.ctxBuilder();
     if (!ctx) return this.lastMode;
     const all = [...this.survival, ...this.overlays, ...this.missionBehaviors];
-    if (this.missionBehaviors.length === 0 && this.movement) all.push(this.movement);
+    if (!this.missionHasActive(ctx) && this.movement) all.push(this.movement);
     let emergency = false;
     let mission = false;
     for (const b of all) {

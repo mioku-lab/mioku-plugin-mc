@@ -58,3 +58,16 @@ export async function eatFood(bot: Bot): Promise<boolean> {
     return false;
   }
 }
+
+export function hasShield(bot: Bot): boolean {
+  try {
+    const anyBot = bot as any;
+    if (anyBot.supportFeature?.("doesntHaveOffHandSlot")) return false;
+    const dest = anyBot.getEquipmentDestSlot?.("off-hand");
+    if (dest == null) return false;
+    const slot = bot.inventory?.slots?.[dest];
+    return !!slot && /shield/.test(String(slot.name));
+  } catch {
+    return false;
+  }
+}

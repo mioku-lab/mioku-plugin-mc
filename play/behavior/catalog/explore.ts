@@ -38,6 +38,11 @@ export class ExploreBehavior extends Behavior {
       })
       .finally(() => {
         clearTimeout(timer);
+        try {
+          ctx.bot.pathfinder.setGoal(null);
+        } catch {
+          // ignore
+        }
         this.exploring = false;
       });
   }

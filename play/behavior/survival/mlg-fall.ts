@@ -18,8 +18,9 @@ export class MlgFallBehavior extends Behavior {
     return n !== "water" && n !== "lava";
   }
 
-  onStart(): void {
+  onStart(ctx: BehaviorContext): void {
     this.placed = false;
+    try { ctx.bot.pathfinder.setGoal(null); } catch { /* ignore */ }
   }
 
   onTick(ctx: BehaviorContext): void {

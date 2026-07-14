@@ -1,18 +1,24 @@
 import { Behavior, type BehaviorContext } from "../base-behavior";
-import { nearestCreeper, entityDistance } from "../../util/entities";
+import { goals } from "mineflayer-pathfinder";
+import { nearestCreeper } from "../../util/entities";
+import { hasShield } from "../../util/inventory";
 
 const CREEPER_FLEE_RADIUS = 6;
-const SAFE_DISTANCE = 8;
+const FLEE_DISTANCE = 10;
+const FLEE_TIMEOUT_MS = 5_000;
 
 export class FleeCreeperBehavior extends Behavior {
   readonly name = "flee_creeper";
   readonly category = "survival" as const;
+  private fleeing = false;
 
   isActive(ctx: BehaviorContext): boolean {
+    if (hasShield(ctx.bot)) return false;
     return nearestCreeper(ctx.bot, CREEPER_FLEE_RADIUS) !== null;
   }
 
   onTick(ctx: BehaviorContext): void {
+    if (this.fleeing) return;
     const bot = ctx.bot;
     const creeper = nearestCreeper(bot, CREEPER_FLEE_RADIUS + 2);
     if (!creeper) return;
@@ -21,27 +27,48 @@ export class FleeCreeperBehavior extends Behavior {
     if (!pos || !cp) return;
     const dx = pos.x - cp.x;
     const dz = pos.z - cp.z;
-    const yaw = Math.atan2(-dx, -dz);
-    bot.look(yaw, 0, true);
-    bot.setControlState("sprint", true);
-    bot.setControlState("forward", true);
-    if (entityDistance({ position: pos }, creeper) > SAFE_DISTANCE) {
-      bot.clearControlStates();
-    }
+    const len = Math.hypot(dx, dz) || 1;
+    const tx = Math.floor(pos.x + (dx / len) * FLEE_DISTANCE);
+    const tz = Math.floor(pos.z + (dz / len) * FLEE_DISTANCE);
+    this.fleeing = true;
+    ctx.log(`flee_creeper -> (${tx},${tz})`);
+    const timer = setTimeout(() => {
+      try {
+        bot.pathfinder.stop();
+      } catch {
+        // ignore
+      }
+    }, FLEE_TIMEOUT_MS);
+    bot.pathfinder
+      .goto(new goals.GoalXZ(tx, tz))
+      .catch(() => {
+        // ignore
+      })
+      .finally(() => {
+        clearTimeout(timer);
+        try {
+          bot.pathfinder.setGoal(null);
+        } catch {
+          // ignore
+        }
+        this.fleeing = false;
+      });
   }
 
   onStop(ctx: BehaviorContext): void {
     try {
-      ctx.bot.clearControlStates();
+      ctx.bot.pathfinder.stop();
     } catch {
       // ignore
     }
+    this.fleeing = false;
   }
 
   contributesState(): Record<string, unknown> {
     return {
       active: true,
       hazard: "creeper",
+      fleeing: this.fleeing,
     };
   }
 }

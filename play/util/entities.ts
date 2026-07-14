@@ -114,3 +114,22 @@ export function nearestCreeper(bot: any, radius = 6): any | null {
   }
   return best;
 }
+
+export function nearestPlayer(bot: any, radius = 16): any | null {
+  let best: any = null;
+  let bestDist = Infinity;
+  const pos = bot?.entity?.position;
+  if (!pos) return null;
+  const players: any = bot.players ?? {};
+  for (const name in players) {
+    if (name === bot.username) continue;
+    const entity = players[name]?.entity;
+    if (!entity?.position) continue;
+    const d = entityDistance({ position: pos }, entity);
+    if (d <= radius && d < bestDist) {
+      best = entity;
+      bestDist = d;
+    }
+  }
+  return best;
+}

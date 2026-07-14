@@ -39,7 +39,7 @@ export class BotController {
       auth: this.server.auth ?? "offline",
       password: this.server.password,
       version: this.server.version || undefined,
-      viewDistance: "short",
+      viewDistance: "normal",
     } as any);
     this.bot = bot;
 
@@ -164,6 +164,64 @@ export class BotController {
       this.log(`bot 错误: ${err}`);
       this.bus.emit("error", err);
     });
+    this.setupPathfinderDebug(bot);
+  }
+
+  private setupPathfinderDebug(bot: Bot): void {
+    (bot as any).on("path_update", (results: any) => {
+      const status = results?.status ?? "?";
+      const len = results?.path?.length ?? 0;
+      this.log(`[pathfinder] path_update: status=${status}, len=${len}`);
+    });
+    (bot as any).on("goal_reached", () => {
+      this.log(`[pathfinder] goal_reached`);
+    });
+    let lastPos: { x: number; y: number; z: number } | null = null;
+    let lastPosAt = 0;
+    bot.on("physicTick", () => {
+      const entity = bot.entity;
+      if (!entity?.position) return;
+      if (!(bot.controlState as any).forward) {
+        lastPos = null;
+        return;
+      }
+      const now = Date.now();
+      const pos = entity.position;
+      if (lastPos && now - lastPosAt > 2000) {
+        const moved = Math.hypot(pos.x - lastPos.x, pos.y - lastPos.y, pos.z - lastPos.z);
+        if (moved < 0.5) {
+          const yaw = entity.yaw;
+          const dx = -Math.sin(yaw);
+          const dz = -Math.cos(yaw);
+          const dirX = Math.abs(dx) >= Math.abs(dz) ? Math.sign(dx) : 0;
+          const dirZ = Math.abs(dz) > Math.abs(dx) ? Math.sign(dz) : 0;
+          const f = bot.blockAt(pos.offset(dirX, 0, dirZ)) as any;
+          const a = bot.blockAt(pos.offset(dirX, 1, dirZ)) as any;
+          const fb = f ? `${f.name}/${f.boundingBox}` : "?";
+          const ab = a ? `${a.name}/${a.boundingBox}` : "?";
+          this.log(`[pathfinder] stuck 2s: moved=${moved.toFixed(2)}, front=${fb}, above=${ab}`);
+          if (f?.boundingBox === "block" && a?.boundingBox === "empty") {
+            try {
+              (bot as any).pathfinder.setGoal(null);
+              bot.setControlState("jump", true);
+              bot.setControlState("forward", false);
+              setTimeout(() => {
+                try { bot.setControlState("forward", true); } catch {}
+                setTimeout(() => {
+                  try {
+                    bot.setControlState("jump", false);
+                    bot.setControlState("forward", false);
+                  } catch {}
+                }, 600);
+              }, 200);
+              this.log(`[pathfinder] 贴脸先跳再往前触发`);
+            } catch {}
+          }
+        }
+        lastPosAt = now;
+      }
+      lastPos = { x: pos.x, y: pos.y, z: pos.z };
+    });
   }
 
   private emitChat(line: GameChatLine): void {
@@ -211,12 +269,21 @@ export class BotController {
   async waitForChunksLoaded(): Promise<void> {
     const bot = this.bot;
     if (!bot) return;
+    const deadline = Date.now() + 20_000;
     try {
-      await withTimeoutMs((bot as any).waitForChunksToLoad(), 10_000);
-      this.log("区块加载完成");
+      await withTimeoutMs((bot as any).waitForChunksToLoad(), 20_000);
     } catch {
-      this.log("等待区块加载超时，继续运行");
+      this.log("等待区块加载超时，继续确认脚下方块");
     }
+    while (Date.now() < deadline) {
+      const feet = bot.entity?.position;
+      if (feet && bot.blockAt(feet) != null) {
+        this.log("区块加载完成（脚下方块就绪）");
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    this.log("脚下区块仍未加载，物理 tick 可能跳过");
   }
 
   private scheduleJoinCommands(): void {

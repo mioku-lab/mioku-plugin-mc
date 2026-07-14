@@ -17,6 +17,10 @@ export class EscapeLavaBehavior extends Behavior {
     return isDanger(feet) || isDanger(below);
   }
 
+  onStart(ctx: BehaviorContext): void {
+    try { ctx.bot.pathfinder.setGoal(null); } catch { /* ignore */ }
+  }
+
   onTick(ctx: BehaviorContext): void {
     ctx.bot.setControlState("jump", true);
     ctx.bot.setControlState("sprint", true);

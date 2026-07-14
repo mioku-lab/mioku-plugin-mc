@@ -34,6 +34,13 @@ export class GatherResourceBehavior extends Behavior {
 
     this.mining = true;
     void (async () => {
+      const timer = setTimeout(() => {
+        try {
+          ctx.bot.pathfinder.stop();
+        } catch {
+          // ignore
+        }
+      }, 12_000);
       try {
         await equipToolFor(ctx.bot, this.resource);
         await ctx.bot.pathfinder.goto(
@@ -43,6 +50,12 @@ export class GatherResourceBehavior extends Behavior {
       } catch (e) {
         ctx.log(`gather 失败: ${e}`);
       } finally {
+        clearTimeout(timer);
+        try {
+          ctx.bot.pathfinder.setGoal(null);
+        } catch {
+          // ignore
+        }
         this.mining = false;
       }
     })();

@@ -12,7 +12,7 @@ import type {
 
 const paramsSchema = z.object({
   resource: z
-    .enum(["wood", "stone", "coal", "iron"])
+    .enum(["wood", "stone", "coal", "iron", "dirt"])
     .default("wood")
     .describe("资源类型"),
 });
@@ -21,7 +21,7 @@ export type GatherResourceParams = z.infer<typeof paramsSchema>;
 
 export const gatherResourceBundle: BehaviorBundle<GatherResourceParams> = {
   id: "task.gather_resource",
-  description: "采集资源（wood/stone/coal/iron）。",
+  description: "采集资源（wood/stone/coal/iron/dirt）。",
   mode: "MISSION",
   paramsSchema,
   build(params: GatherResourceParams): BehaviorEntry[] {

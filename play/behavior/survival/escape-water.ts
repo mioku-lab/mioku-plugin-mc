@@ -8,6 +8,10 @@ export class EscapeWaterBehavior extends Behavior {
     return (ctx.bot.oxygenLevel ?? 20) <= 0;
   }
 
+  onStart(ctx: BehaviorContext): void {
+    try { ctx.bot.pathfinder.setGoal(null); } catch { /* ignore */ }
+  }
+
   onTick(ctx: BehaviorContext): void {
     ctx.bot.setControlState("jump", true);
     ctx.bot.setControlState("forward", true);

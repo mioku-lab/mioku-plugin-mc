@@ -4,10 +4,10 @@ import { entityName } from "../util/entities";
 import { hasShield } from "../util/inventory";
 
 const SHIELD_BLOCK_DURATION_MS = 2000;
-const PRE_ATTACK_DELAY_MS = 100;
-const POST_ATTACK_DELAY_MS = 150;
-const ATTACK_COOLDOWN_TICKS = 20;
-const SHIELD_BREAK_DISTANCE = 3.0;
+const PRE_ATTACK_DELAY_MS = 50;
+const POST_ATTACK_DELAY_MS = 50;
+const ATTACK_COOLDOWN_TICKS = 12;
+const REEQUIP_INTERVAL_MS = 3000;
 
 export class Combat {
   private readonly bot: Bot;
@@ -15,11 +15,12 @@ export class Combat {
   private attacking = false;
   private timeToNextAttack = 0;
   private lastShieldBlockAt = 0;
+  private lastEquipAt = 0;
   private resolveAttack: (() => void) | null = null;
 
   movements: MovementsConfig;
   followRange = 2;
-  attackRange = 3.0;
+  attackRange = 3.5;
   viewDistance = 128;
 
   constructor(bot: Bot, movements: MovementsConfig) {
@@ -37,8 +38,10 @@ export class Combat {
       this.attacking = false;
       this.timeToNextAttack = 0;
       this.lastShieldBlockAt = 0;
+      this.lastEquipAt = 0;
       this.resolveAttack = resolve;
 
+      void this.equipBestWeapon();
       const engine = (this.bot as any).pathEngine;
       if (engine) {
         try {
@@ -83,6 +86,23 @@ export class Combat {
     return this.target;
   }
 
+  private async equipBestWeapon(): Promise<void> {
+    try {
+      const items = this.bot.inventory?.items?.() ?? [];
+      const sword = items.find((i: any) => /_sword$/.test(i.name));
+      const axe = items.find((i: any) => /_axe$/.test(i.name) && !/pickaxe/.test(i.name));
+      const best = sword ?? axe;
+      if (best) {
+        const held = this.bot.heldItem;
+        if (!held || held.type !== best.type) {
+          await this.bot.equip(best, "hand");
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   private update(): void {
     if (!this.target) return;
     const entity = this.bot.entity;
@@ -109,6 +129,11 @@ export class Combat {
 
     if (dist <= this.attackRange) {
       if (!this.attacking && this.timeToNextAttack <= 0) {
+        const now = Date.now();
+        if (now - this.lastEquipAt > REEQUIP_INTERVAL_MS) {
+          this.lastEquipAt = now;
+          void this.equipBestWeapon();
+        }
         this.attacking = true;
         this.attemptAttack(targetPos);
       }
@@ -119,7 +144,7 @@ export class Combat {
     if (this.timeToNextAttack > 0) this.timeToNextAttack--;
   }
 
-  private handleShield(targetPos: any, dist: number): void {
+  private handleShield(targetPos: any, _dist: number): void {
     if (entityName(this.target) !== "creeper") {
       if (this.lastShieldBlockAt > 0 && Date.now() - this.lastShieldBlockAt > SHIELD_BLOCK_DURATION_MS) {
         try {
@@ -157,7 +182,10 @@ export class Combat {
 
   private async attemptAttack(targetPos: any): Promise<void> {
     const target = this.target;
-    if (!target) return;
+    if (!target) {
+      this.attacking = false;
+      return;
+    }
     const shield = hasShield(this.bot);
     try {
       if (shield) {

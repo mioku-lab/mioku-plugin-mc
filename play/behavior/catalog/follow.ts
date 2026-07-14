@@ -35,14 +35,13 @@ export class FollowPlayerBehavior extends Behavior {
     this.lastDist = entityDistance(bot.entity, player);
     if (!engine) return;
     if (engine.isMoving()) return;
+    const now = Date.now();
+    if (now - this.lastGoalAt < 2000) return;
     if (this.lastDist > this.distance + 1) {
       try {
         engine.setGoal(new GoalFollow(player, this.distance), true);
-        const now = Date.now();
-        if (now - this.lastGoalAt > 3_000) {
-          ctx.log(`follow -> ${this.target} (dist=${this.lastDist.toFixed(1)}, goal=${this.distance})`);
-          this.lastGoalAt = now;
-        }
+        this.lastGoalAt = now;
+        ctx.log(`follow -> ${this.target} (dist=${this.lastDist.toFixed(1)}, goal=${this.distance})`);
       } catch (e) {
         ctx.log(`follow 寻路失败: ${e}`);
       }

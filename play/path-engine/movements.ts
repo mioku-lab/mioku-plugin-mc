@@ -1,4 +1,5 @@
 import type { Bot } from "mineflayer";
+import { Vec3 } from "vec3";
 
 export interface MovementsConfig {
   canDig: boolean;
@@ -23,12 +24,14 @@ export interface BlockInfo {
   diggable: boolean;
   hardness: number;
   physical: boolean;
+  shapes: number[][];
+  position: { x: number; y: number; z: number };
 }
 
 export function getBlock(bot: Bot, x: number, y: number, z: number): BlockInfo | null {
   try {
     const block = bot.blockAt(
-      { x: Math.floor(x), y: Math.floor(y), z: Math.floor(z) } as any,
+      new Vec3(Math.floor(x), Math.floor(y), Math.floor(z)),
       false,
     ) as any;
     if (!block) return null;
@@ -39,7 +42,17 @@ export function getBlock(bot: Bot, x: number, y: number, z: number): BlockInfo |
       diggable: !!block.diggable,
       hardness: block.hardness ?? 0,
       physical: !!block.physical,
+      shapes: block.shapes ?? [],
+      position: { x: block.position.x, y: block.position.y, z: block.position.z },
     };
+  } catch {
+    return null;
+  }
+}
+
+export function getRawBlock(bot: Bot, x: number, y: number, z: number): any | null {
+  try {
+    return bot.blockAt(new Vec3(Math.floor(x), Math.floor(y), Math.floor(z)), false) as any;
   } catch {
     return null;
   }

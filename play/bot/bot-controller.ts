@@ -169,7 +169,7 @@ export class BotController {
     if (!bot) return;
     try {
       const movements: MovementsConfig = { ...DEFAULT_MOVEMENTS };
-      this.pathEngine = new PathEngine(bot);
+      this.pathEngine = new PathEngine(bot, (m) => this.log(m));
       this.pathEngine.setMovements(movements);
       this.pathEngine.thinkTimeout = 5_000;
       this.pathEngine.tickTimeout = 40;

@@ -33,10 +33,16 @@ export class ExploreBehavior extends Behavior {
 
     gotoPromise
       .then(() => {
-        if (!timedOut) ctx.log(`explore 到达 (${gx},${gz})`);
+        if (!timedOut) {
+          ctx.log(`explore 到达 (${gx},${gz})`);
+          this.mission?.succeed("已完成一次探索移动", { x: gx, z: gz });
+        } else {
+          this.mission?.fail("path_timeout", `探索目标 (${gx},${gz}) 超时`);
+        }
       })
       .catch((e: any) => {
         ctx.log(`explore 放弃 (${gx},${gz}): ${e}`);
+        this.mission?.fail("path_unreachable", String(e), { x: gx, z: gz });
       })
       .finally(() => {
         clearTimeout(timer);

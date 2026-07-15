@@ -158,10 +158,6 @@ export class PlayManager {
     const mainLoop = new MainLoop({
       session,
       pluginCtx,
-      onAction: (action: string) => {
-        void workLoop.dispatch(action);
-      },
-      getBehaviorLabel: () => engine.currentLabel(),
     });
     session.engine = engine;
     session.addCompanion(engine);

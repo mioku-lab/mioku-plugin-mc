@@ -15,6 +15,7 @@ const paramsSchema = z.object({
     .enum(["wood", "stone", "coal", "iron", "dirt"])
     .default("wood")
     .describe("资源类型"),
+  count: z.number().int().min(1).max(64).default(1).describe("目标采集数量"),
 });
 
 export type GatherResourceParams = z.infer<typeof paramsSchema>;
@@ -26,7 +27,7 @@ export const gatherResourceBundle: BehaviorBundle<GatherResourceParams> = {
   paramsSchema,
   build(params: GatherResourceParams): BehaviorEntry[] {
     const b: Behavior = new GatherResourceBehavior();
-    b.configure({ resource: params.resource });
+    b.configure({ resource: params.resource, count: String(params.count) });
     return [{ priority: CATEGORY_PRIORITY.movement, behavior: b }];
   },
   snapshot(internal: unknown): unknown {

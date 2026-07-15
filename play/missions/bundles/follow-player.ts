@@ -4,12 +4,7 @@ import {
   type Behavior,
 } from "../../behavior/base-behavior";
 import { FollowPlayerBehavior } from "../../behavior/catalog/follow";
-import type {
-  BehaviorBundle,
-  BehaviorEntry,
-  BundleBuildContext,
-  MissionContext,
-} from "../registry";
+import type { BehaviorBundle, BehaviorEntry, BundleBuildContext } from "../registry";
 
 const paramsSchema = z.object({
   target: z.string().min(1).describe("玩家名"),
@@ -37,12 +32,6 @@ export const followPlayerBundle: BehaviorBundle<FollowPlayerParams> = {
       distance: String(params.distance),
     });
     return [{ priority: CATEGORY_PRIORITY.movement, behavior: b }];
-  },
-  isFinished(ctx: MissionContext): boolean {
-    const internal = ctx.internal as { target: string } | null;
-    if (!internal?.target) return true;
-    const player = (ctx as any).bot?.players?.[internal.target]?.entity;
-    return !player;
   },
   snapshot(internal: unknown): unknown {
     const i = internal as { target: string; distance: number } | null;

@@ -30,7 +30,7 @@ export async function equipSword(bot: Bot): Promise<void> {
   }
 }
 
-export async function equipToolFor(bot: Bot, resource: string): Promise<void> {
+export async function equipToolFor(bot: Bot, resource: string): Promise<boolean> {
   const items = bot.inventory?.items?.() ?? [];
   let tool: any;
   if (resource === "wood") {
@@ -41,10 +41,12 @@ export async function equipToolFor(bot: Bot, resource: string): Promise<void> {
   if (tool) {
     try {
       await bot.equip(tool, "hand");
+      return true;
     } catch {
-      // ignore
+      return false;
     }
   }
+  return false;
 }
 
 export async function eatFood(bot: Bot): Promise<boolean> {

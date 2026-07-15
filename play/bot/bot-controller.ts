@@ -151,6 +151,11 @@ export class BotController {
     });
     bot.on("respawn", () => this.bus.emit("respawn"));
     bot.on("entityHurt", (entity: any) => this.bus.emit("entityHurt", entity));
+    (bot as any).on("playerCollect", (collector: any) => {
+      if (collector?.id === bot.entity?.id) this.bus.emit("inventoryChanged");
+    });
+    (bot as any).on("heldItemChanged", () => this.bus.emit("inventoryChanged"));
+    (bot.inventory as any)?.on?.("updateSlot", () => this.bus.emit("inventoryChanged"));
     bot.on("physicTick", () => this.bus.emit("physicTick"));
     bot.on("kicked", (reason: string) =>
       this.bus.emit("kicked", String(reason || "")),

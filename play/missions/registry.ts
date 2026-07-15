@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Behavior } from "../behavior/base-behavior";
+import type { Behavior, BehaviorMissionReporter } from "../behavior/base-behavior";
 import type { BehaviorMode } from "../state/mode";
 
 export interface BehaviorEntry {
@@ -12,6 +12,7 @@ export interface BundleBuildContext {
   movements: any;
   log: (msg: string) => void;
   bus: any;
+  mission: BehaviorMissionReporter;
 }
 
 export interface MissionContext extends BundleBuildContext {
@@ -62,6 +63,17 @@ export class TaskRegistry {
     }));
   }
 
+  describe(): Array<BundleListEntry & { params: unknown }> {
+    return [...this.bundles.values()]
+      .map((bundle) => ({
+        id: bundle.id,
+        description: bundle.description,
+        mode: bundle.mode,
+        params: describeSchema(bundle.paramsSchema),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }
+
   validate(id: string, params: unknown): ValidateResult {
     const bundle = this.bundles.get(id);
     if (!bundle) {
@@ -81,4 +93,15 @@ export class TaskRegistry {
     }
     return { ok: true, params: result.data };
   }
+}
+
+function describeSchema(schema: z.ZodTypeAny): unknown {
+  const definition = (schema as any)?._def;
+  if (definition?.typeName !== z.ZodFirstPartyTypeKind.ZodObject) return {};
+  const shape = definition.shape();
+  const out: Record<string, string> = {};
+  for (const key of Object.keys(shape).sort()) {
+    out[key] = String(shape[key]?._def?.description ?? shape[key]?._def?.typeName ?? "unknown");
+  }
+  return out;
 }

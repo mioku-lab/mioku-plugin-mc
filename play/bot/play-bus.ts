@@ -19,6 +19,7 @@ export interface PlayBusEvents {
   playerJoined: (username: string) => void;
   playerLeft: (username: string) => void;
   entityHurt: (entity: any) => void;
+  inventoryChanged: () => void;
   physicTick: () => void;
 }
 

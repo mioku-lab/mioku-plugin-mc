@@ -6,6 +6,8 @@ export type MemoryKey =
   | "inventory"
   | "heldItem"
   | "armor"
+  | "environment"
+  | "equipment"
   | "nearestHostile"
   | "nearestPlayer"
   | "nearestCreeper"

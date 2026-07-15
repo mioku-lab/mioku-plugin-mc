@@ -7,6 +7,14 @@ export interface BehaviorContext {
   log: (msg: string) => void;
 }
 
+export interface BehaviorMissionReporter {
+  progress(value: unknown): void;
+  succeed(detail?: string, progress?: unknown): void;
+  fail(code: import("../state/mode").MissionErrorCode, detail: string, progress?: unknown): void;
+  block(code: import("../state/mode").MissionErrorCode, detail: string, progress?: unknown): void;
+  isCurrent(): boolean;
+}
+
 export type BehaviorCategory = "survival" | "combat" | "maintenance" | "movement";
 
 export const CATEGORY_PRIORITY: Record<BehaviorCategory, number> = {
@@ -22,6 +30,7 @@ export abstract class Behavior {
   readonly priorityOverride?: number;
   enabled = false;
   protected params: Record<string, string> = {};
+  protected mission?: BehaviorMissionReporter;
 
   get priority(): number {
     return this.priorityOverride ?? CATEGORY_PRIORITY[this.category];
@@ -65,5 +74,9 @@ export abstract class Behavior {
 
   protected onConfigure(_params: Record<string, string>): void {
     // subclasses read params here
+  }
+
+  bindMission(reporter: BehaviorMissionReporter): void {
+    this.mission = reporter;
   }
 }

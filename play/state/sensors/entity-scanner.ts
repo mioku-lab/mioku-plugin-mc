@@ -1,5 +1,6 @@
 import type { Bot } from "mineflayer";
 import type { MemoryBus } from "../memory-bus";
+import type { PlayEventType } from "../event-journal";
 import {
   listNearbyHostiles,
   nearestCreeper,
@@ -28,6 +29,7 @@ export interface EntityScannerOptions {
   playerRadius?: number;
   passiveRadius?: number;
   creeperRadius?: number;
+  onEvent?: (type: PlayEventType, data: unknown) => void;
 }
 
 function toEntityRef(entity: any, distance: number): EntityRef {
@@ -80,7 +82,13 @@ export class EntityScanner {
   private readonly playerRadius: number;
   private readonly passiveRadius: number;
   private readonly creeperRadius: number;
+  private readonly onEvent?: (type: PlayEventType, data: unknown) => void;
   private timer?: NodeJS.Timeout;
+  private previousDay?: boolean;
+  private previousVitalsBucket = "";
+  private previousInventorySignature = "";
+  private previousEquipmentSignature = "";
+  private previousEquipment: Record<string, EquipmentSummary | null> | null = null;
 
   constructor(opts: EntityScannerOptions) {
     this.bus = opts.bus;
@@ -90,6 +98,7 @@ export class EntityScanner {
     this.playerRadius = opts.playerRadius ?? 16;
     this.passiveRadius = opts.passiveRadius ?? 20;
     this.creeperRadius = opts.creeperRadius ?? 6;
+    this.onEvent = opts.onEvent;
   }
 
   start(): void {
@@ -119,6 +128,18 @@ export class EntityScanner {
     const creeperRef = creeper ? toEntityRef(creeper, distanceTo(myPos, creeper)) : null;
 
     const { nearestPlayer, playerNames } = this.scanPlayers(bot, myPos);
+    const vitals = {
+      health: bot.health ?? 20,
+      food: bot.food ?? 20,
+      oxygen: bot.oxygenLevel ?? 20,
+    };
+    const inventory = summarizeInventory(bot);
+    const equipment = summarizeEquipment(bot);
+    const environment = {
+      isDay: Boolean(bot.time?.isDay ?? true),
+      timeOfDay: Number(bot.time?.timeOfDay ?? 0),
+      weather: (bot as any).thunderState > 0 ? "thunder" : (bot as any).isRaining ? "rain" : "clear",
+    };
 
     this.bus.update((m) => {
       m.set("nearestHostile", hostileRef, { ttlMs: 600 });
@@ -127,14 +148,56 @@ export class EntityScanner {
       m.set("nearestPlayer", nearestPlayer, { ttlMs: 600 });
       m.set("nearbyHostileNames", hostileNames, { ttlMs: 600 });
       m.set("nearbyPlayerNames", playerNames, { ttlMs: 600 });
-      m.set("vitals", {
-        health: bot.health ?? 20,
-        food: bot.food ?? 20,
-        oxygen: bot.oxygenLevel ?? 20,
-      }, { ttlMs: 1000 });
+      m.set("vitals", vitals, { ttlMs: 1000 });
       m.set("dimension", bot.game?.dimension ?? "overworld", { ttlMs: 5000 });
       m.set("position", { x: myPos.x, y: myPos.y, z: myPos.z }, { ttlMs: 1000 });
+      m.set("inventory", inventory, { ttlMs: 2000 });
+      m.set("equipment", equipment, { ttlMs: 2000 });
+      m.set("environment", environment, { ttlMs: 2000 });
     });
+
+    this.emitChanges(vitals, inventory, equipment, environment);
+  }
+
+  private emitChanges(
+    vitals: { health: number; food: number; oxygen: number },
+    inventory: unknown,
+    equipment: Record<string, EquipmentSummary | null>,
+    environment: { isDay: boolean; timeOfDay: number; weather: string },
+  ): void {
+    const bucket = `${thresholdBucket(vitals.health)}:${thresholdBucket(vitals.food)}:${thresholdBucket(vitals.oxygen)}`;
+    if (this.previousVitalsBucket && bucket !== this.previousVitalsBucket) {
+      this.onEvent?.("vitals_threshold", { ...vitals, bucket });
+    }
+    this.previousVitalsBucket = bucket;
+
+    if (this.previousDay !== undefined && environment.isDay !== this.previousDay) {
+      this.onEvent?.("day_phase", environment);
+    }
+    this.previousDay = environment.isDay;
+
+    const inventorySignature = JSON.stringify(inventory);
+    if (this.previousInventorySignature && inventorySignature !== this.previousInventorySignature) {
+      this.onEvent?.("inventory_change", inventory);
+    }
+    this.previousInventorySignature = inventorySignature;
+
+    const equipmentSignature = JSON.stringify(equipment);
+    if (this.previousEquipmentSignature && equipmentSignature !== this.previousEquipmentSignature) {
+      this.onEvent?.("equipment_change", {
+        equipment,
+        critical: Object.values(equipment).some(
+          (item) => item?.durabilityRatio !== undefined && item.durabilityRatio <= 0.1,
+        ),
+        missing: this.previousEquipment
+          ? Object.keys(this.previousEquipment).some(
+              (key) => this.previousEquipment?.[key] && !equipment[key],
+            )
+          : false,
+      });
+    }
+    this.previousEquipmentSignature = equipmentSignature;
+    this.previousEquipment = equipment;
   }
 
   private scanPlayers(
@@ -159,4 +222,54 @@ export class EntityScanner {
     names.sort();
     return { nearestPlayer: nearest?.ref ?? null, playerNames: names };
   }
+}
+
+function thresholdBucket(value: number): string {
+  if (value <= 0) return "empty";
+  if (value <= 6) return "critical";
+  if (value <= 12) return "low";
+  return "ok";
+}
+
+function summarizeInventory(bot: any): Array<{ name: string; count: number }> {
+  const totals = new Map<string, number>();
+  for (const item of bot.inventory?.items?.() ?? []) {
+    totals.set(item.name, (totals.get(item.name) ?? 0) + Number(item.count ?? 0));
+  }
+  return [...totals.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+interface EquipmentSummary {
+  name: string;
+  durabilityRatio?: number;
+}
+
+function summarizeEquipment(bot: any): Record<string, EquipmentSummary | null> {
+  const itemSummary = (item: any): EquipmentSummary | null => {
+    if (!item) return null;
+    const max = Number(bot.registry?.items?.[item.type]?.maxDurability ?? 0);
+    const used = Number(item.durabilityUsed ?? 0);
+    return {
+      name: item.name,
+      ...(max > 0 ? { durabilityRatio: Math.max(0, max - used) / max } : {}),
+    };
+  };
+  const read = (destination: string): EquipmentSummary | null => {
+    try {
+      const slot = bot.getEquipmentDestSlot?.(destination);
+      return slot == null ? null : itemSummary(bot.inventory?.slots?.[slot]);
+    } catch {
+      return null;
+    }
+  };
+  return {
+    hand: itemSummary(bot.heldItem),
+    offHand: read("off-hand"),
+    head: read("head"),
+    torso: read("torso"),
+    legs: read("legs"),
+    feet: read("feet"),
+  };
 }

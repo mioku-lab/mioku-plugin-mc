@@ -176,6 +176,11 @@ fields:
         type: textarea
         description: bot 第一次进入该服务器后自动发送的命令（每行一条，如 /login xxx），仅在首次 spawn 时执行，重生不重复
 
+      - key: allowedCommands
+        label: AI 命令白名单
+        type: textarea
+        description: Working AI 可发送的斜杠命令前缀，每行一条；未列出的命令会被拒绝
+
   - key: play.groups
     label: 群聊绑定
     type: array
@@ -206,24 +211,39 @@ fields:
     description: 主模型两次调用最小间隔
     placeholder: 15000
   - key: play.mainLoopIdleIntervalMs
-    label: 空闲唤醒间隔(ms)
+    label: 空闲唤醒间隔(ms，已废弃)
     type: number
-    description: 无事件时主模型定时唤醒间隔
+    description: 为兼容旧配置保留；事件驱动版本不再定时调用主模型
     placeholder: 60000
+  - key: play.mainConversationFocusMs
+    label: 游戏连续对话窗口(ms)
+    type: number
+    description: 玩家明确呼叫 bot 后，后续消息可继续触发主 AI 的时间窗口
+    placeholder: 120000
+  - key: play.workEventDebounceMs
+    label: 工作事件合并窗口(ms)
+    type: number
+    description: 合并短时间内连续受伤、状态变化和任务结果，避免重复调用 Working AI
+    placeholder: 1000
+  - key: play.workLoopMinIntervalMs
+    label: Working AI 最小间隔(ms)
+    type: number
+    description: 普通事件触发的 Working AI 最小调用间隔；新指令和致命事件可绕过
+    placeholder: 5000
   - key: play.behaviorTickIntervalMs
     label: 行为引擎 tick(ms)
     type: number
     description: 行为引擎 tick 间隔
     placeholder: 200
   - key: play.gameChatHistoryLines
-    label: 游戏聊天窗口
+    label: 游戏聊天窗口（已废弃）
     type: number
-    description: 喂给主模型的游戏聊天行数
+    description: 为兼容旧配置保留；事件驱动版本改用增量事件游标
     placeholder: 40
   - key: play.qqHistoryLines
-    label: QQ 聊天窗口
+    label: QQ 聊天窗口（已废弃）
     type: number
-    description: 喂给主模型的 QQ 群消息行数
+    description: 为兼容旧配置保留；QQ 消息按事件游标进入下一次主模型上下文
     placeholder: 20
   - key: play.maxPlayBudgetWarnRatio
     label: 预算提醒比例
@@ -265,6 +285,9 @@ keys:
   - play.toolPermission
   - play.mainLoopMinIntervalMs
   - play.mainLoopIdleIntervalMs
+  - play.mainConversationFocusMs
+  - play.workEventDebounceMs
+  - play.workLoopMinIntervalMs
   - play.behaviorTickIntervalMs
   - play.gameChatHistoryLines
   - play.qqHistoryLines

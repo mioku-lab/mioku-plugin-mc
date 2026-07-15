@@ -20,6 +20,7 @@ const KNOWN_COMMANDS = new Set([
   "/behaviors",
   "/off",
   "/missions",
+  "/actions",
   "/stopmission",
 ]);
 
@@ -149,6 +150,14 @@ export async function handleDebugCommand(
       }
       return lines.join("\n");
     }
+    case "/actions": {
+      const s = pm.getActiveSession(groupId);
+      if (!s) return "当前没有进行中的 mc 会话";
+      return [
+        "== Atomic Actions ==",
+        ...s.listActions().map((action) => `- ${action.name}  ${action.description}`),
+      ].join("\n");
+    }
     case "/stopmission": {
       const s = pm.getActiveSession(groupId);
       if (!s) return "当前没有进行中的 mc 会话";
@@ -188,6 +197,9 @@ export async function handleDebugCommand(
       const activeNow = states.find((x) => x.active);
       const mem = s.getMemorySnapshot();
       const snap = s.getBehaviorSnapshot();
+      const directive = s.getDirective();
+      const lastMissionOutcome = s.getLastMissionOutcome();
+      const lastActionOutcome = s.getLastActionOutcome();
       const memLines = Object.entries(mem)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([k, v]) => {
@@ -206,9 +218,13 @@ export async function handleDebugCommand(
       return [
         `服务器: ${st.serverName} | 状态: ${st.connected ? "已连接" : "未连接"}${s.debug ? " [debug]" : ""}`,
         `已游玩: ${Math.floor(elapsed / 60)}m${elapsed % 60}s | 当前执行: ${activeNow?.name ?? "none"}`,
+        `主指令: ${directive ? `${directive.status} ${directive.goal}` : "none"}`,
+        `最近任务结果: ${lastMissionOutcome ? `${lastMissionOutcome.status} ${lastMissionOutcome.bundleId}${lastMissionOutcome.code ? ` (${lastMissionOutcome.code})` : ""}` : "none"}`,
+        `最近动作结果: ${lastActionOutcome ? `${lastActionOutcome.status} ${lastActionOutcome.action}${lastActionOutcome.code ? ` (${lastActionOutcome.code})` : ""}` : "none"}`,
         `已启用状态:`,
         ...on.map((x) => `  ${x.active ? "▶" : "○"} ${x.name} (${x.category}, P${x.priority})`),
         ...snapLines,
+        `Snapshot revisions: ${snap ? formatMemoryValue(snap.revisions) : "none"}`,
         `MemoryBus (${memLines.length} keys):`,
         ...memLines,
       ].join("\n");
@@ -261,5 +277,6 @@ function motionUsage(): string {
     "  /status            查看当前状态 + MemoryBus + Snapshot",
     "  /behaviors         列出所有任务 bundle",
     "  /missions          列出所有任务 bundle（含当前任务）",
+    "  /actions           列出 Working AI 可用的一次性动作",
   ].join("\n");
 }

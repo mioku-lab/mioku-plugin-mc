@@ -3,6 +3,8 @@
 > 仅当 `config/mc/play.json` 的 `debug.enabled = true` 且发送者为 bot 主人（owner）时生效。
 > 这些命令不注册到帮助系统，仅供调试/测试行为引擎使用，不会触发 AI 循环。
 
+正常模式下 AI 采用事件驱动：稳定执行任务时不会周期调用 Working AI；新主指令、受伤、昼夜变化或任务失败才会唤醒它。QQ 消息只进入 MC Main AI 的下次上下文，不单独触发，也不会由 MC Main AI 回复。
+
 ## 开关
 
 在 `config/mc/play.json` 中：
@@ -27,6 +29,7 @@
 | `/off <名称>` | 关闭指定叠加状态 | `/off defend` |
 | `/status` | 查看启用的状态 & 正在执行的行为 | `/status` |
 | `/behaviors` | 列出所有行为及参数 | `/behaviors` |
+| `/actions` | 列出 Working AI 可用的一次性动作 | `/actions` |
 
 行为系统的并发模型、每个状态的含义、参数说明详见 [`play/behavior/README.md`](../behavior/README.md)。
 
@@ -36,10 +39,9 @@
 - `follow target=<玩家名> [distance=<格>]`
 - `gather resource=<wood|stone|coal|iron>`
 - `farm_mobs`
-- `guard [x=<int> y=<int> z=<int>] [radius=<格>]`（不传坐标则守当前位置）
-- `socialize`
-- `flee`
 - `explore`
+- `approach_player target=<玩家名> [distance=<格>]`
+- `seek_shelter`
 
 ## 叠加状态（`/motion`，可同时开多个，按优先级抢占移动）
 

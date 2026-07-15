@@ -8,6 +8,7 @@ export interface PlayServerConfig {
   password?: string;
   maxPlayMs: number;
   joinCommands: string[];
+  allowedCommands: string[];
 }
 
 export interface GroupBinding {
@@ -18,11 +19,23 @@ export interface GroupBinding {
 
 export type PlayToolPermission = "owner" | "admin" | "member";
 
+export interface MainDirective {
+  id: string;
+  goal: string;
+  source: "main";
+  createdAt: number;
+  updatedAt: number;
+  status: "active" | "completed" | "cancelled";
+}
+
 export interface PlayConfig {
   servers: PlayServerConfig[];
   groups: GroupBinding[];
   mainLoopMinIntervalMs: number;
   mainLoopIdleIntervalMs: number;
+  mainConversationFocusMs: number;
+  workEventDebounceMs: number;
+  workLoopMinIntervalMs: number;
   toolPermission: PlayToolPermission;
   behaviorTickIntervalMs: number;
   gameChatHistoryLines: number;
@@ -39,6 +52,9 @@ export const DEFAULT_PLAY_CONFIG: PlayConfig = {
   groups: [],
   mainLoopMinIntervalMs: 15_000,
   mainLoopIdleIntervalMs: 60_000,
+  mainConversationFocusMs: 120_000,
+  workEventDebounceMs: 1_000,
+  workLoopMinIntervalMs: 5_000,
   toolPermission: "admin",
   behaviorTickIntervalMs: 200,
   gameChatHistoryLines: 40,
@@ -56,13 +72,9 @@ export interface MovementInit {
 }
 
 export type MainLoopTrigger =
-  | "game_chat"
-  | "idle_timer"
-  | "damage"
-  | "low_health"
-  | "respawn"
-  | "player_near"
-  | "budget_warn";
+  | "direct_game_chat"
+  | "working_agent_attention"
+  | "goodbye";
 
 export interface PlaySessionStatus {
   serverId: string;
@@ -112,6 +124,9 @@ function normalizeServer(raw: any): PlayServerConfig {
     password: raw?.password ? String(raw.password) : undefined,
     maxPlayMs: asPositiveNumber(raw?.maxPlayMs, 30 * 60_000),
     joinCommands: asStringList(raw?.joinCommands),
+    allowedCommands: asStringList(raw?.allowedCommands).map((command) =>
+      command.startsWith("/") ? command : `/${command}`,
+    ),
   };
 }
 
@@ -149,6 +164,18 @@ export function normalizePlayConfig(raw: any): PlayConfig {
     mainLoopIdleIntervalMs: asPositiveNumber(
       raw?.mainLoopIdleIntervalMs,
       DEFAULT_PLAY_CONFIG.mainLoopIdleIntervalMs,
+    ),
+    mainConversationFocusMs: asPositiveNumber(
+      raw?.mainConversationFocusMs,
+      DEFAULT_PLAY_CONFIG.mainConversationFocusMs,
+    ),
+    workEventDebounceMs: asPositiveNumber(
+      raw?.workEventDebounceMs,
+      DEFAULT_PLAY_CONFIG.workEventDebounceMs,
+    ),
+    workLoopMinIntervalMs: asPositiveNumber(
+      raw?.workLoopMinIntervalMs,
+      DEFAULT_PLAY_CONFIG.workLoopMinIntervalMs,
     ),
     toolPermission: perm,
     behaviorTickIntervalMs: asPositiveNumber(

@@ -10,6 +10,8 @@ export class FollowPlayerBehavior extends Behavior {
   private lastDist = -1;
   private warnedNoEntity = false;
   private lastGoalAt = 0;
+  private missingSince = 0;
+  private seenTarget = false;
 
   protected onConfigure(params: Record<string, string>): void {
     this.target = params.target ?? "";
@@ -17,7 +19,8 @@ export class FollowPlayerBehavior extends Behavior {
   }
 
   isActive(ctx: BehaviorContext): boolean {
-    return !!this.target && !!ctx.bot.players[this.target]?.entity;
+    void ctx;
+    return !!this.target;
   }
 
   onTick(ctx: BehaviorContext): void {
@@ -25,12 +28,22 @@ export class FollowPlayerBehavior extends Behavior {
     const engine = bot.pathEngine;
     const player = bot.players[this.target]?.entity;
     if (!player) {
+      if (!this.missingSince) this.missingSince = Date.now();
       if (!this.warnedNoEntity) {
         ctx.log(`follow 找不到玩家 ${this.target} 的实体（不在视野/未加载）`);
         this.warnedNoEntity = true;
       }
+      if (Date.now() - this.missingSince >= (this.seenTarget ? 3_000 : 5_000)) {
+        const code = this.seenTarget ? "target_lost" : "target_not_found";
+        this.mission?.block(code, `无法继续跟随玩家 ${this.target}`, {
+          target: this.target,
+          seenTarget: this.seenTarget,
+        });
+      }
       return;
     }
+    this.seenTarget = true;
+    this.missingSince = 0;
     this.warnedNoEntity = false;
     this.lastDist = entityDistance(bot.entity, player);
     if (!engine) return;
@@ -61,6 +74,7 @@ export class FollowPlayerBehavior extends Behavior {
       target: this.target || null,
       distance: this.distance,
       lastObservedDist: this.lastDist < 0 ? null : Math.round(this.lastDist * 10) / 10,
+      seenTarget: this.seenTarget,
     };
   }
 }

@@ -11,6 +11,7 @@ export interface DebugCommandContext {
 const OVERLAY_NAMES = ["defend", "auto_eat"];
 const KNOWN_COMMANDS = new Set([
   "/join",
+  "/play",
   "/exit",
   "/say",
   "/motion",
@@ -91,6 +92,11 @@ export async function handleDebugCommand(
     case "/join": {
       if (!arg) return "用法: /join <服务器ID>";
       const r = await pm.enter(groupId, arg, { debug: true });
+      return r.message;
+    }
+    case "/play": {
+      if (!arg) return "用法: /play <服务器ID>";
+      const r = await pm.enter(groupId, arg);
       return r.message;
     }
     case "/exit": {
@@ -197,9 +203,7 @@ export async function handleDebugCommand(
       const activeNow = states.find((x) => x.active);
       const mem = s.getMemorySnapshot();
       const snap = s.getBehaviorSnapshot();
-      const directive = s.getDirective();
       const lastMissionOutcome = s.getLastMissionOutcome();
-      const lastActionOutcome = s.getLastActionOutcome();
       const memLines = Object.entries(mem)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([k, v]) => {
@@ -215,12 +219,15 @@ export async function handleDebugCommand(
               .map((x) => `  ▶ ${x.name}: ${formatMemoryValue(x.internalState)}`),
           ]
         : [`Snapshot: (engine not ready)`];
+      const ws = st.workStatus;
+      const workLine = ws
+        ? `Work 状态: ${ws.running ? "运行中" : "空闲"} - ${ws.summary}${ws.progress ? ` (${ws.progress.current}/${ws.progress.target} ${ws.progress.unit})` : ""}`
+        : "Work 状态: 未知";
       return [
         `服务器: ${st.serverName} | 状态: ${st.connected ? "已连接" : "未连接"}${s.debug ? " [debug]" : ""}`,
         `已游玩: ${Math.floor(elapsed / 60)}m${elapsed % 60}s | 当前执行: ${activeNow?.name ?? "none"}`,
-        `主指令: ${directive ? `${directive.status} ${directive.goal}` : "none"}`,
+        workLine,
         `最近任务结果: ${lastMissionOutcome ? `${lastMissionOutcome.status} ${lastMissionOutcome.bundleId}${lastMissionOutcome.code ? ` (${lastMissionOutcome.code})` : ""}` : "none"}`,
-        `最近动作结果: ${lastActionOutcome ? `${lastActionOutcome.status} ${lastActionOutcome.action}${lastActionOutcome.code ? ` (${lastActionOutcome.code})` : ""}` : "none"}`,
         `已启用状态:`,
         ...on.map((x) => `  ${x.active ? "▶" : "○"} ${x.name} (${x.category}, P${x.priority})`),
         ...snapLines,

@@ -19,28 +19,24 @@ export interface GroupBinding {
 
 export type PlayToolPermission = "owner" | "admin" | "member";
 
-export interface MainDirective {
-  id: string;
-  goal: string;
-  source: "main";
-  createdAt: number;
+export interface WorkStatus {
+  running: boolean;
+  goal: string | null;
+  summary: string;
+  progress?: { current: number; target: number; unit: string };
   updatedAt: number;
-  status: "active" | "completed" | "cancelled";
 }
 
 export interface PlayConfig {
   servers: PlayServerConfig[];
   groups: GroupBinding[];
-  mainLoopMinIntervalMs: number;
-  mainLoopIdleIntervalMs: number;
+  mainChatDebounceMs: number;
   mainConversationFocusMs: number;
-  workEventDebounceMs: number;
-  workLoopMinIntervalMs: number;
+  chatScanIntervalMs: number;
+  workSubroutineMaxMs: number;
+  workSubroutineMaxIterations: number;
   toolPermission: PlayToolPermission;
   behaviorTickIntervalMs: number;
-  gameChatHistoryLines: number;
-  qqHistoryLines: number;
-  maxPlayBudgetWarnRatio: number;
   goodbyeTimeoutMs: number;
   qqSendPerMinute: number;
   gameChatMinIntervalMs: number;
@@ -50,16 +46,13 @@ export interface PlayConfig {
 export const DEFAULT_PLAY_CONFIG: PlayConfig = {
   servers: [],
   groups: [],
-  mainLoopMinIntervalMs: 15_000,
-  mainLoopIdleIntervalMs: 60_000,
-  mainConversationFocusMs: 120_000,
-  workEventDebounceMs: 1_000,
-  workLoopMinIntervalMs: 5_000,
+  mainChatDebounceMs: 1_000,
+  mainConversationFocusMs: 30_000,
+  chatScanIntervalMs: 4 * 60_000,
+  workSubroutineMaxMs: 5 * 60_000,
+  workSubroutineMaxIterations: 25,
   toolPermission: "admin",
   behaviorTickIntervalMs: 200,
-  gameChatHistoryLines: 40,
-  qqHistoryLines: 20,
-  maxPlayBudgetWarnRatio: 0.85,
   goodbyeTimeoutMs: 8_000,
   qqSendPerMinute: 3,
   gameChatMinIntervalMs: 1_500,
@@ -73,8 +66,9 @@ export interface MovementInit {
 
 export type MainLoopTrigger =
   | "direct_game_chat"
-  | "working_agent_attention"
-  | "goodbye";
+  | "direct_qq_chat"
+  | "chat_scan_due"
+  | "work_completed";
 
 export interface PlaySessionStatus {
   serverId: string;
@@ -85,6 +79,92 @@ export interface PlaySessionStatus {
   connected: boolean;
   currentBehavior: string | null;
   lastAction: string | null;
+  workStatus?: WorkStatus | null;
+}
+
+export type PlayEventType =
+  | "game_chat"
+  | "qq_chat"
+  | "damage"
+  | "vitals_threshold"
+  | "day_phase"
+  | "death"
+  | "respawn"
+  | "inventory_change"
+  | "equipment_change"
+  | "mission_outcome"
+  | "action_outcome"
+  | "path_error"
+  | "chat_scan_due"
+  | "work_completed";
+
+export interface PlayEvent<T = unknown> {
+  seq: number;
+  at: number;
+  type: PlayEventType;
+  data: T;
+}
+
+export interface EventBatch {
+  events: PlayEvent[];
+  cursor: number;
+}
+
+export class PlayEventJournal {
+  private seq = 0;
+  private events: PlayEvent[] = [];
+  private listeners = new Set<(event: PlayEvent) => void>();
+
+  constructor(private readonly maxEntries = 300) {}
+
+  append<T>(type: PlayEventType, data: T): PlayEvent<T> {
+    const event: PlayEvent<T> = {
+      seq: ++this.seq,
+      at: Date.now(),
+      type,
+      data,
+    };
+    this.events.push(event);
+    if (this.events.length > this.maxEntries) {
+      this.events.splice(0, this.events.length - this.maxEntries);
+    }
+    for (const listener of this.listeners) {
+      try {
+        listener(event);
+      } catch {
+        // Journal consumers must not affect the game loop.
+      }
+    }
+    return event;
+  }
+
+  readAfter(
+    cursor: number,
+    filter?: (event: PlayEvent) => boolean,
+    limit?: number,
+  ): EventBatch {
+    const matched = this.events.filter(
+      (event) => event.seq > cursor && (!filter || filter(event)),
+    );
+    return {
+      events: limit && matched.length > limit ? matched.slice(-limit) : matched,
+      cursor: matched.at(-1)?.seq ?? cursor,
+    };
+  }
+
+  subscribe(listener: (event: PlayEvent) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  latestCursor(): number {
+    return this.seq;
+  }
+
+  clear(): void {
+    this.events = [];
+    this.listeners.clear();
+  }
 }
 
 function asStringList(value: unknown): string[] {
@@ -143,7 +223,7 @@ export function normalizePlayConfig(raw: any): PlayConfig {
     ? raw.servers.map(normalizeServer).filter((s: PlayServerConfig) => s.id && s.host)
     : [];
   const groups = Array.isArray(raw?.groups)
-    ? raw.groups
+    ? raw?.groups
         .map(normalizeBinding)
         .filter((g: GroupBinding) => g.groupId > 0 && g.botSelfId > 0)
     : [];
@@ -157,42 +237,30 @@ export function normalizePlayConfig(raw: any): PlayConfig {
   return {
     servers,
     groups,
-    mainLoopMinIntervalMs: asPositiveNumber(
-      raw?.mainLoopMinIntervalMs,
-      DEFAULT_PLAY_CONFIG.mainLoopMinIntervalMs,
-    ),
-    mainLoopIdleIntervalMs: asPositiveNumber(
-      raw?.mainLoopIdleIntervalMs,
-      DEFAULT_PLAY_CONFIG.mainLoopIdleIntervalMs,
+    mainChatDebounceMs: asPositiveNumber(
+      raw?.mainChatDebounceMs,
+      DEFAULT_PLAY_CONFIG.mainChatDebounceMs,
     ),
     mainConversationFocusMs: asPositiveNumber(
       raw?.mainConversationFocusMs,
       DEFAULT_PLAY_CONFIG.mainConversationFocusMs,
     ),
-    workEventDebounceMs: asPositiveNumber(
-      raw?.workEventDebounceMs,
-      DEFAULT_PLAY_CONFIG.workEventDebounceMs,
+    chatScanIntervalMs: asPositiveNumber(
+      raw?.chatScanIntervalMs,
+      DEFAULT_PLAY_CONFIG.chatScanIntervalMs,
     ),
-    workLoopMinIntervalMs: asPositiveNumber(
-      raw?.workLoopMinIntervalMs,
-      DEFAULT_PLAY_CONFIG.workLoopMinIntervalMs,
+    workSubroutineMaxMs: asPositiveNumber(
+      raw?.workSubroutineMaxMs,
+      DEFAULT_PLAY_CONFIG.workSubroutineMaxMs,
+    ),
+    workSubroutineMaxIterations: asPositiveNumber(
+      raw?.workSubroutineMaxIterations,
+      DEFAULT_PLAY_CONFIG.workSubroutineMaxIterations,
     ),
     toolPermission: perm,
     behaviorTickIntervalMs: asPositiveNumber(
       raw?.behaviorTickIntervalMs,
       DEFAULT_PLAY_CONFIG.behaviorTickIntervalMs,
-    ),
-    gameChatHistoryLines: asPositiveNumber(
-      raw?.gameChatHistoryLines,
-      DEFAULT_PLAY_CONFIG.gameChatHistoryLines,
-    ),
-    qqHistoryLines: asPositiveNumber(
-      raw?.qqHistoryLines,
-      DEFAULT_PLAY_CONFIG.qqHistoryLines,
-    ),
-    maxPlayBudgetWarnRatio: asPositiveNumber(
-      raw?.maxPlayBudgetWarnRatio,
-      DEFAULT_PLAY_CONFIG.maxPlayBudgetWarnRatio,
     ),
     goodbyeTimeoutMs: asPositiveNumber(
       raw?.goodbyeTimeoutMs,

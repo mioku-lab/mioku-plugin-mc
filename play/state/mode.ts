@@ -15,6 +15,7 @@ export type MissionErrorCode =
   | "command_rejected"
   | "disconnected"
   | "cancelled"
+  | "timeout"
   | "unknown";
 
 export interface MissionState {

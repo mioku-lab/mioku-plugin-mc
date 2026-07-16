@@ -1,18 +1,6 @@
-export type PlayEventType =
-  | "game_chat"
-  | "qq_chat"
-  | "directive"
-  | "damage"
-  | "vitals_threshold"
-  | "day_phase"
-  | "death"
-  | "respawn"
-  | "inventory_change"
-  | "equipment_change"
-  | "mission_outcome"
-  | "action_outcome"
-  | "path_error"
-  | "main_attention";
+import type { PlayEventType } from "../types";
+
+export type { PlayEventType };
 
 export interface PlayEvent<T = unknown> {
   seq: number;

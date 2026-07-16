@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { PlayPluginContext } from "./context";
 import { BotController } from "./bot/bot-controller";
 import { PlayBus } from "./bot/play-bus";
@@ -12,12 +11,7 @@ import { SnapshotCollector, type BehaviorSnapshot } from "./state/snapshot";
 import { PlayEventJournal } from "./state/event-journal";
 import { ActionRegistry, type ActionOutcome } from "./actions/registry";
 import { TaskRegistry } from "./missions/registry";
-import {
-  MissionController,
-  type SwitchResult,
-  type MissionSpec,
-  type BundleId,
-} from "./missions/mission-controller";
+import { MissionController, type SwitchResult, type MissionSpec } from "./missions/mission-controller";
 import { followPlayerBundle } from "./missions/bundles/follow-player";
 import { gatherResourceBundle } from "./missions/bundles/gather-resource";
 import { farmMobsBundle } from "./missions/bundles/farm-mobs";
@@ -28,9 +22,9 @@ import { seekShelterBundle } from "./missions/bundles/seek-shelter";
 import type { MissionOutcome } from "./state/mode";
 import type {
   GroupBinding,
-  MainDirective,
   PlayServerConfig,
   PlaySessionStatus,
+  WorkStatus,
 } from "./types";
 
 export interface PlaySessionCompanion {
@@ -66,8 +60,12 @@ export class PlaySession {
   private watchdog?: NodeJS.Timeout;
   private companions: PlaySessionCompanion[] = [];
   private qqWindow?: { start: number; count: number };
-  private directive: MainDirective | null = null;
-  private lastActionOutcome: ActionOutcome | null = null;
+  private workStatus: WorkStatus = {
+    running: false,
+    goal: null,
+    summary: "空闲",
+    updatedAt: Date.now(),
+  };
 
   constructor(opts: PlaySessionOptions) {
     this.pluginCtx = opts.pluginCtx;
@@ -136,8 +134,12 @@ export class PlaySession {
     ctx.ctx.logger.info(`[MC/play] 已进入 ${this.server.name}`);
   }
 
-  onQqMessage(text: string): void {
-    this.events.append("qq_chat", { text });
+  onQqMessage(text: string, opts: { sender?: string; atBot?: boolean } = {}): void {
+    this.events.append("qq_chat", {
+      text,
+      sender: opts.sender,
+      atBot: Boolean(opts.atBot),
+    });
   }
 
   private startWatchdog(): void {
@@ -155,6 +157,7 @@ export class PlaySession {
     if (this.stopped) return;
     const elapsed = Date.now() - this.startedAt;
     this.missionController?.tick();
+    this.pluginCtx.notifyChatScan?.();
     if (elapsed >= this.server.maxPlayMs) {
       void this.stop("time_up");
     }
@@ -176,6 +179,12 @@ export class PlaySession {
     this.bus.removeAll();
     this.memory.clear();
     this.events.clear();
+    this.workStatus = {
+      running: false,
+      goal: null,
+      summary: "已停止",
+      updatedAt: Date.now(),
+    };
 
     const ctx = this.pluginCtx;
     ctx.ctx.logger.info(`[MC/play] 已离开 ${this.server.name} (reason: ${reason})`);
@@ -207,6 +216,11 @@ export class PlaySession {
     try {
       const persona = main.getPrompt("persona") ?? "";
       const prompt = buildGoodbyePrompt(persona, this.server);
+      const config = ctx.getPlayConfig();
+      const startedAt = Date.now();
+      const debugConfig = ctx.getPlayConfig();
+      void startedAt;
+      void debugConfig;
       const text = await withTimeoutMs(
         main.generateText({ prompt, messages: [] }),
         ctx.config.goodbyeTimeoutMs,
@@ -358,50 +372,38 @@ export class PlaySession {
     return this.missionController?.getLastOutcome() ?? null;
   }
 
-  setDirective(goal: string, replace = true): MainDirective {
-    const now = Date.now();
-    if (this.directive?.status === "active" && !replace) {
-      this.directive = {
-        ...this.directive,
-        goal: `${this.directive.goal}\nAdditional goal: ${goal.trim()}`,
-        updatedAt: now,
-      };
-      this.events.append("directive", this.directive);
-      return { ...this.directive };
-    }
-    if (this.directive && replace) {
-      this.directive = { ...this.directive, status: "cancelled", updatedAt: now };
-    }
-    const directive: MainDirective = {
-      id: randomUUID(),
-      goal: goal.trim(),
-      source: "main",
-      createdAt: now,
-      updatedAt: now,
-      status: "active",
+  updateWorkStatus(status: Partial<WorkStatus>): void {
+    this.workStatus = {
+      ...this.workStatus,
+      ...status,
+      updatedAt: Date.now(),
     };
-    this.directive = directive;
-    this.events.append("directive", directive);
-    return { ...directive };
   }
 
-  getDirective(): MainDirective | null {
-    return this.directive ? { ...this.directive } : null;
+  getWorkStatus(): WorkStatus {
+    return { ...this.workStatus };
   }
 
-  completeDirective(id: string, status: "completed" | "cancelled" = "completed"): void {
-    if (!this.directive || this.directive.id !== id) return;
-    this.directive = { ...this.directive, status, updatedAt: Date.now() };
+  getBot(): any {
+    return this.controller.bot;
+  }
+
+  getPluginCtx(): PlayPluginContext {
+    return this.pluginCtx;
   }
 
   requestMainAttention(reason: string): void {
-    this.events.append("main_attention", { reason });
+    this.events.append("work_completed", { reason, manual: true });
   }
 
   async performAction(
     action: string,
     params: Record<string, unknown>,
-    meta: { directiveId?: string; completesDirectiveOnSuccess?: boolean } = {},
+    meta: {
+      directiveId?: string;
+      goalId?: string;
+      completesGoalOnSuccess?: boolean;
+    } = {},
   ): Promise<ActionOutcome> {
     const bot = this.controller.bot;
     if (!bot) {
@@ -412,7 +414,7 @@ export class PlaySession {
         detail: "bot 尚未连接",
         at: Date.now(),
         directiveId: meta.directiveId,
-        completesDirectiveOnSuccess: meta.completesDirectiveOnSuccess ?? true,
+        completesDirectiveOnSuccess: meta.completesGoalOnSuccess ?? true,
       };
       this.recordActionOutcome(outcome);
       return outcome;
@@ -434,7 +436,7 @@ export class PlaySession {
   }
 
   getLastActionOutcome(): ActionOutcome | null {
-    return this.lastActionOutcome ? { ...this.lastActionOutcome } : null;
+    return null;
   }
 
   private lastSwitchResult: SwitchResult | null = null;
@@ -457,32 +459,11 @@ export class PlaySession {
   }
 
   private handleMissionOutcome(outcome: MissionOutcome): void {
-    if (
-      outcome.status === "succeeded" &&
-      outcome.directiveId &&
-      outcome.completesDirectiveOnSuccess
-    ) {
-      this.completeDirective(outcome.directiveId);
-    }
-    this.events.append("mission_outcome", {
-      ...outcome,
-      directiveActive: this.directive?.status === "active",
-    });
+    this.events.append("mission_outcome", outcome);
   }
 
   private recordActionOutcome(outcome: ActionOutcome): void {
-    this.lastActionOutcome = outcome;
-    if (
-      outcome.status === "succeeded" &&
-      outcome.directiveId &&
-      outcome.completesDirectiveOnSuccess
-    ) {
-      this.completeDirective(outcome.directiveId);
-    }
-    this.events.append("action_outcome", {
-      ...outcome,
-      directiveActive: this.directive?.status === "active",
-    });
+    this.events.append("action_outcome", outcome);
   }
 
   getStatus(): PlaySessionStatus {
@@ -494,7 +475,8 @@ export class PlaySession {
       startedAt: this.startedAt,
       connected: this.connected,
       currentBehavior: this.engine?.currentLabel() ?? null,
-      lastAction: this.lastActionOutcome?.action ?? this.directive?.goal ?? null,
+      lastAction: this.workStatus.goal ?? null,
+      workStatus: this.getWorkStatus(),
     };
   }
 

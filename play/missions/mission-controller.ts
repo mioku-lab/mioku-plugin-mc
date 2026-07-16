@@ -168,7 +168,7 @@ export class MissionController {
   tick(): void {
     const current = this.current;
     const bundle = this.currentBundle;
-    if (!current || !bundle?.isFinished) return;
+    if (!current || typeof bundle?.isFinished !== "function") return;
     const ctx = this.opts.buildContext();
     if (!ctx?.bot) return;
     try {
@@ -185,7 +185,13 @@ export class MissionController {
       }
     } catch (error) {
       this.opts.log?.(
-        `[MC/play] mission.isFinished 失败 (${bundle.id}): ${error}`,
+        `[MC/play] mission.isFinished 抛错 (${bundle.id})，强制结束: ${error}`,
+      );
+      this.finish(
+        current.missionId,
+        "failed",
+        "unknown",
+        `isFinished threw: ${String(error)}`,
       );
     }
   }

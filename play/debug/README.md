@@ -20,6 +20,7 @@
 | 命令 | 作用 | 示例 |
 |------|------|------|
 | `/join <服务器ID>` | 以 debug 模式进入服务器（无 AI 循环） | `/join survival` |
+| `/play <服务器ID>` | 进入服务器并启动完整 AI 循环（等同主人让 bot 正常进服） | `/play survival` |
 | `/exit` | 离开当前服务器 | `/exit` |
 | `/say <文本>` | 让 bot 在游戏内发言 | `/say 大家好~` |
 | `/motion <移动行为> [key=value ...]` | 设置移动行为 | `/motion follow target=Steve distance=3` |
@@ -66,7 +67,8 @@
 ## 说明
 
 - `/join` 走的是 debug 入口：bot 连接服务器、启动行为引擎与生存层（岩浆/MLG/苦力怕/溺水/饥饿仍会自动抢占保护），但**不启动主模型循环和工作模型**。所以 bot 不会自己说话或决策，全靠主人的命令。
-- `/say` 和 `/motion` 需要已有一个进行中的会话（先 `/join`）。bot 尚未连接完成时会回复"bot 尚未连接到服务器"。
+- `/play` 走的是正常入口：bot 连接服务器并启动完整的 main + work AI 循环（与 QQ 触发 `control_bot` 进服效果一致）。**仅在调试时观察 AI 实际行为**时使用；生产场景请走 `control_bot` 工具。
+- `/say` 和 `/motion` 需要已有一个进行中的会话（先 `/join` 或 `/play`）。bot 尚未连接完成时会回复"bot 尚未连接到服务器"。
 - 生存层在 debug 模式下仍然生效——例如测试 `follow` 时若苦力怕靠近，会自动撤离。
 - 正常的 AI 入口（chat 主模型调用 `mc.control_bot` 工具）与 debug 互不影响；AI 入口会启动完整循环。
 - 关闭 debug 后这些命令不再被拦截，会当作普通群消息处理。

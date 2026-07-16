@@ -5,7 +5,7 @@ import type { PlayPluginContext } from "./context";
 import type { PlayConfigHandler } from "./config";
 import { PlaySession } from "./session";
 import { MainLoop } from "./ai/main-loop";
-import { WorkLoop } from "./ai/work-loop";
+import { WorkSubroutine } from "./ai/work-subroutine";
 import { BehaviorEngine } from "./behavior/engine";
 import type { Behavior } from "./behavior/base-behavior";
 import { EscapeLavaBehavior } from "./behavior/survival/escape-lava";
@@ -67,6 +67,7 @@ export class PlayManager {
         this.mainInstance = this.aiService?.get("main");
         this.workInstance = this.aiService?.get("work");
       },
+      createWorkSubroutine: (opts) => new WorkSubroutine(opts),
     };
   }
 
@@ -154,17 +155,18 @@ export class PlayManager {
       overlays: this.buildOverlays(),
       initialMovement: { name: "idle", params: {} },
     });
-    const workLoop = new WorkLoop({ session, pluginCtx });
-    const mainLoop = new MainLoop({
-      session,
-      pluginCtx,
-    });
     session.engine = engine;
     session.addCompanion(engine);
+
+    let mainLoop: MainLoop | undefined;
     if (!debug) {
-      session.addCompanion(workLoop);
+      pluginCtx.notifyChatScan = () => mainLoop?.markChatScanDue();
+      mainLoop = new MainLoop({ session, pluginCtx });
       session.addCompanion(mainLoop);
+    } else {
+      pluginCtx.notifyChatScan = undefined;
     }
+
     this.sessions.set(groupId, session);
 
     try {
@@ -196,7 +198,8 @@ export class PlayManager {
     const text = String(event?.raw_message ?? event?.message ?? "").trim();
     if (!text) return;
     const sender = event?.sender?.card || event?.sender?.nickname || event?.user_id || "群友";
-    session.onQqMessage(`[${sender}] ${text}`);
+    const atBot = detectQqAtBot(event, session.server.username, session.binding.botSelfId);
+    session.onQqMessage(`[${sender}] ${text}`, { sender: String(sender), atBot });
   }
 
   getStatusList() {
@@ -223,4 +226,22 @@ export interface PlayGroupBinding extends GroupBinding {}
 
 export function createPlayManager(opts: PlayManagerOptions): PlayManager {
   return new PlayManager(opts);
+}
+
+function detectQqAtBot(
+  event: any,
+  botName: string,
+  botSelfId: number | undefined,
+): boolean {
+  const lower = String(event?.raw_message ?? event?.message ?? "").toLowerCase();
+  if (botName && lower.includes(botName.toLowerCase())) return true;
+  if (Array.isArray(event?.message)) {
+    for (const segment of event.message) {
+      if (!segment || typeof segment !== "object") continue;
+      if (segment.type !== "at") continue;
+      const qq = Number(segment.data?.qq ?? 0);
+      if (qq > 0 && qq === botSelfId) return true;
+    }
+  }
+  return false;
 }

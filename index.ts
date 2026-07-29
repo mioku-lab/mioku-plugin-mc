@@ -3,7 +3,7 @@ import type { AIService, ConfigService } from "mioku";
 import { createConfigHandler } from "./utils/config-handler";
 import { createPlayConfigHandler } from "./play/config";
 import { createPlayManager } from "./play";
-import { setMcPlayState } from "./play/runtime";
+import { createMcSkill } from "./skills/mc";
 import { handleDebugCommand } from "./play/debug/commands";
 import { createServerManager } from "./utils/server-manager";
 import { parseMcCommand } from "./utils/command-router";
@@ -44,8 +44,11 @@ export default definePlugin({
       playConfigHandler,
       syncConfigHandler: configHandler,
     });
-    setMcPlayState({ playManager });
     ctx.logger.info("Minecraft 游玩子系统已就绪");
+
+    if (aiService) {
+      aiService.registerSkill(createMcSkill(playManager));
+    }
 
     const serverManager = createServerManager(
       (serverName, status) => {
@@ -131,6 +134,7 @@ export default definePlugin({
     return async () => {
       serverManager.stopServers();
       await playManager.dispose();
+      if (aiService) aiService.removeSkill("mc");
       ctx.logger.info("Minecraft插件已卸载");
     };
   },

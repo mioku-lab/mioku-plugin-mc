@@ -64,16 +64,20 @@ export default definePlugin({
 
     serverManager.startServers(config);
 
-    ctx.handle("message", async (event: any) => {
+    ctx.handle("message", async (event) => {
       const text = ctx.text(event).trim();
+      const groupId =
+        "group_id" in event && typeof event.group_id === "number"
+          ? event.group_id
+          : undefined;
 
-      if (event.group_id) {
+      if (groupId) {
         const reply = await handleDebugCommand({
           text,
           isOwner: ctx.isOwner?.(event) ?? false,
           debugEnabled: playConfigHandler.getConfig().debug.enabled,
           playManager,
-          groupId: Number(event.group_id),
+          groupId: Number(groupId),
         });
         if (reply !== null) {
           await event.reply(reply);
@@ -84,7 +88,7 @@ export default definePlugin({
       const parsed = parseMcCommand(text);
 
       if (!parsed || parsed.action === "") {
-        if (event.group_id) {
+        if (groupId) {
           playManager.onQqMessage(event);
           await forwardToMc(ctx, event, config, configHandler, serverManager);
         }
@@ -93,7 +97,9 @@ export default definePlugin({
 
       switch (parsed.action) {
         case "状态": {
-          await handleStatus(serverManager, config, (msg) => event.reply(msg));
+          await handleStatus(serverManager, config, async (msg) => {
+            await event.reply(msg);
+          });
           break;
         }
         case "开启同步": {
@@ -104,7 +110,9 @@ export default definePlugin({
             serverManager,
             configHandler,
             config,
-            (msg) => event.reply(msg),
+            async (msg) => {
+              await event.reply(msg);
+            },
           );
           break;
         }
@@ -116,13 +124,17 @@ export default definePlugin({
             serverManager,
             configHandler,
             config,
-            (msg) => event.reply(msg),
+            async (msg) => {
+              await event.reply(msg);
+            },
           );
           break;
         }
         case "重连": {
           if (ctx.isOwner?.(event)) {
-            await handleReconnect(serverManager, (msg) => event.reply(msg));
+            await handleReconnect(serverManager, async (msg) => {
+              await event.reply(msg);
+            });
           }
           break;
         }

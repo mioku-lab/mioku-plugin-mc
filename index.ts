@@ -1,5 +1,5 @@
 import { definePlugin, type MiokiContext } from "mioki";
-import type { AIService, ConfigService } from "mioku";
+import { getService, Services } from "mioku";
 import { createConfigHandler } from "./utils/config-handler";
 import { createPlayConfigHandler } from "./play/config";
 import { createPlayManager } from "./play";
@@ -25,7 +25,7 @@ export default definePlugin({
   description: "Minecraft服务器与QQ群消息互通插件",
 
   async setup(ctx: MiokiContext) {
-    const configService = ctx.services?.config as ConfigService | undefined;
+    const configService = getService(ctx, Services.Config);
 
     const configHandler = createConfigHandler(configService);
     await configHandler.register();
@@ -35,7 +35,7 @@ export default definePlugin({
     const playConfigHandler = createPlayConfigHandler(configService);
     await playConfigHandler.register();
 
-    const aiService = ctx.services?.ai as AIService | undefined;
+    const aiService = getService(ctx, Services.AI);
 
     const playManager = createPlayManager({
       ctx,

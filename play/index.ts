@@ -1,4 +1,4 @@
-import type { MiokiContext } from "mioki";
+import type { MiokuContext } from "mioku";
 import type { AIService, AIInstance, ConfigService } from "mioku";
 import type { ConfigHandler } from "../utils/config-handler";
 import type { PlayPluginContext } from "./context";
@@ -17,7 +17,7 @@ import { SelfDefenseBehavior } from "./behavior/catalog/defend";
 import type { GroupBinding, PlayServerConfig } from "./types";
 
 export interface PlayManagerOptions {
-  ctx: MiokiContext;
+  ctx: MiokuContext;
   aiService: AIService | undefined;
   configService: ConfigService | undefined;
   playConfigHandler: PlayConfigHandler;
@@ -36,7 +36,7 @@ export interface PlayExitResult {
 }
 
 export class PlayManager {
-  private readonly ctx: MiokiContext;
+  private readonly ctx: MiokuContext;
   private readonly aiService: AIService | undefined;
   private readonly configService: ConfigService | undefined;
   private readonly playConfigHandler: PlayConfigHandler;

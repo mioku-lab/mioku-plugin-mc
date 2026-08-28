@@ -1,4 +1,4 @@
-import { definePlugin, type MiokiContext } from "mioki";
+import { definePlugin, type MiokuContext } from "mioku";
 import { getService, Services } from "mioku";
 import { createConfigHandler } from "./utils/config-handler";
 import { createPlayConfigHandler } from "./play/config";
@@ -24,7 +24,7 @@ export default definePlugin({
   version: "1.0.0",
   description: "Minecraft服务器与QQ群消息互通插件",
 
-  async setup(ctx: MiokiContext) {
+  async setup(ctx: MiokuContext) {
     const configService = getService(ctx, Services.Config);
 
     const configHandler = createConfigHandler(configService);
@@ -153,7 +153,7 @@ export default definePlugin({
 });
 
 async function handleMcEvent(
-  ctx: MiokiContext,
+  ctx: MiokuContext,
   event: McEvent,
   config: McConfig,
   configHandler: ReturnType<typeof createConfigHandler>,
@@ -174,12 +174,12 @@ async function handleMcEvent(
   const groups = groupList ? [groupList] : [];
 
   for (const botId of bots) {
-    const bot = ctx.pickBot(Number(botId));
+    const bot = ctx.pickBot(String(botId));
     if (!bot) continue;
 
     for (const groupId of groups) {
       try {
-        await bot.sendGroupMsg(Number(groupId), messageText);
+        await bot.sendMessage({ type: "group", group_id: String(groupId) }, messageText);
       } catch (err) {
         ctx.logger.error(`[MC] 发送消息到群 ${groupId} 失败: ${err}`);
       }
@@ -188,7 +188,7 @@ async function handleMcEvent(
 }
 
 async function forwardToMc(
-  ctx: MiokiContext,
+  ctx: MiokuContext,
   event: any,
   config: McConfig,
   configHandler: ReturnType<typeof createConfigHandler>,

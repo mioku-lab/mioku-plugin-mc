@@ -1,4 +1,4 @@
-import type { MiokiContext } from "mioki";
+import type { MiokuContext } from "mioku";
 import type { AIService, AIInstance, ConfigService } from "mioku";
 import type { PlayConfig } from "./types";
 import type { ConfigHandler } from "../utils/config-handler";
@@ -6,7 +6,7 @@ import type { WorkSubroutine, WorkTerminator } from "./ai/work-subroutine";
 import type { PlaySession } from "./session";
 
 export interface PlayPluginContext {
-  ctx: MiokiContext;
+  ctx: MiokuContext;
   config: PlayConfig;
   aiService: AIService | undefined;
   configService: ConfigService | undefined;

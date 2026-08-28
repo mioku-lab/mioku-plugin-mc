@@ -239,10 +239,10 @@ export class PlaySession {
 
   async notifyQq(message: string): Promise<void> {
     const ctx = this.pluginCtx;
-    const bot = ctx.ctx.pickBot(this.binding.botSelfId);
+    const bot = ctx.ctx.pickBot(String(this.binding.botSelfId));
     if (!bot) return;
     try {
-      await bot.sendGroupMsg(this.binding.groupId, message);
+      await bot.sendMessage({ type: "group", group_id: String(this.binding.groupId) }, message);
     } catch (err) {
       ctx.ctx.logger.error(`[MC/play] 发送 QQ 通知失败: ${err}`);
     }
@@ -261,10 +261,10 @@ export class PlaySession {
       return false;
     }
     this.qqWindow.count++;
-    const bot = ctx.ctx.pickBot(this.binding.botSelfId);
+    const bot = ctx.ctx.pickBot(String(this.binding.botSelfId));
     if (!bot) return false;
     try {
-      await bot.sendGroupMsg(this.binding.groupId, message);
+      await bot.sendMessage({ type: "group", group_id: String(this.binding.groupId) }, message);
       return true;
     } catch (err) {
       ctx.ctx.logger.error(`[MC/play] 发送 QQ 消息失败: ${err}`);

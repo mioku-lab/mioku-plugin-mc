@@ -88,7 +88,7 @@ export class TaskRegistry {
         ok: false,
         error: `invalid_params: ${result.error.issues
           .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
-          .join("; ")}`,
+          .join("); ")}`,
       };
     }
     return { ok: true, params: result.data };

@@ -67,7 +67,7 @@ export class ActionRegistry {
           .map(
             (issue) => `${issue.path.join(".") || "params"}: ${issue.message}`,
           )
-          .join("; "),
+          .join("); "),
         meta,
       );
     }

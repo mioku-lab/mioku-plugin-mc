@@ -1,6 +1,6 @@
 {
   "name": "mioku-plugin-mc",
-  "version": "3.0.1",
+  "version": "4.0.0",
   "description": "Minecraft与QQ群消息互通插件，支持服务器状态监控与RCON命令",
   "main": "index.ts",
   "type": "module",
@@ -71,11 +71,9 @@
     "zod": "^3.24.1"
   },
   "peerDependencies": {
-    "mioku": "^0.8.0",
-    "mioki": "^0.16.0"
+    "mioku": "^1.0.0"
   },
   "devDependencies": {
-    "mioku": "workspace:*",
-    "mioki": "^0.16.0"
+    "mioku": "workspace:*"
   }
 }

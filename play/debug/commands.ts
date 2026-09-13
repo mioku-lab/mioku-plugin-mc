@@ -2,7 +2,7 @@ import type { PlayManager } from "../index";
 
 export interface DebugCommandContext {
   text: string;
-  isOwner: boolean;
+  isMaster: boolean;
   debugEnabled: boolean;
   playManager: PlayManager;
   groupId: number;
@@ -78,7 +78,7 @@ function parseBundleArgs(arg: string): ParsedBundleArgs | null {
 export async function handleDebugCommand(
   ctx: DebugCommandContext,
 ): Promise<string | null> {
-  if (!ctx.debugEnabled || !ctx.isOwner) return null;
+  if (!ctx.debugEnabled || !ctx.isMaster) return null;
   const text = ctx.text.trim();
   if (!text.startsWith("/")) return null;
   const head = text.split(/\s+/)[0]?.toLowerCase();

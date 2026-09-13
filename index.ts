@@ -74,7 +74,7 @@ export default definePlugin({
       if (groupId) {
         const reply = await handleDebugCommand({
           text,
-          isOwner: ctx.isOwner?.(event) ?? false,
+          isMaster: ctx.isMaster?.(event) ?? false,
           debugEnabled: playConfigHandler.getConfig().debug.enabled,
           playManager,
           groupId: Number(groupId),
@@ -131,7 +131,7 @@ export default definePlugin({
           break;
         }
         case "重连": {
-          if (ctx.isOwner?.(event)) {
+          if (ctx.isMaster?.(event)) {
             await handleReconnect(serverManager, async (msg) => {
               await event.reply(msg);
             });
@@ -219,7 +219,7 @@ async function forwardToMc(
       const isAllowed = isCommandAllowed(
         commandText,
         server,
-        ctx.isOwner?.(event) ?? false,
+        ctx.isMaster?.(event) ?? false,
         event.user_id ?? "",
       );
 

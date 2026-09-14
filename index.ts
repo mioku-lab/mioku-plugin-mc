@@ -21,8 +21,6 @@ import type { McConfig } from "./types";
 
 export default definePlugin({
   name: "mc",
-  version: "1.0.0",
-  description: "Minecraft服务器与QQ群消息互通插件",
 
   async setup(ctx: MiokuContext) {
     const configService = getService(ctx, Services.Config);

@@ -6,7 +6,6 @@ import { createPlayManager } from "./play";
 import { createMcSkill } from "./skills/mc";
 import { handleDebugCommand } from "./play/debug/commands";
 import { createServerManager } from "./utils/server-manager";
-import { parseMcCommand } from "./utils/command-router";
 import { handleStatus } from "./handlers/status";
 import { handleSync } from "./handlers/sync";
 import { handleReconnect } from "./handlers/reconnect";
@@ -83,60 +82,64 @@ export default definePlugin({
         }
       }
 
-      const parsed = parseMcCommand(text);
-
-      if (!parsed || parsed.action === "") {
-        if (groupId) {
-          playManager.onQqMessage(event);
-          await forwardToMc(ctx, event, config, configHandler, serverManager);
-        }
-        return;
+      if (groupId) {
+        await forwardToMc(ctx, event, config, configHandler, serverManager);
       }
+    });
 
-      switch (parsed.action) {
-        case "状态": {
-          await handleStatus(serverManager, config, async (msg) => {
-            await event.reply(msg);
-          });
-          break;
-        }
-        case "开启同步": {
-          const serverName = parsed.args[0];
-          await handleSync(
-            serverName,
-            true,
-            serverManager,
-            configHandler,
-            config,
-            async (msg) => {
-              await event.reply(msg);
-            },
-          );
-          break;
-        }
-        case "关闭同步": {
-          const serverName = parsed.args[0];
-          await handleSync(
-            serverName,
-            false,
-            serverManager,
-            configHandler,
-            config,
-            async (msg) => {
-              await event.reply(msg);
-            },
-          );
-          break;
-        }
-        case "重连": {
-          if (ctx.isMaster?.(event)) {
-            await handleReconnect(serverManager, async (msg) => {
-              await event.reply(msg);
-            });
-          }
-          break;
-        }
-      }
+    const replyWithEvent = (event: import("mioku").MessageEvent) =>
+      async (msg: string) => {
+        await event.reply(msg);
+      };
+
+    ctx.command({
+      id: "mc-status",
+      name: "mc-status",
+      match: /^\/mc\s+状态\s*$/,
+      prefixes: ["/"],
+      permission: "master",
+      description: "查看所有已配置服务器的WebSocket连接状态，包括连接中、已断开等",
+      async handler({ event }) {
+        await handleStatus(serverManager, config, replyWithEvent(event));
+      },
+    });
+
+    ctx.command({
+      id: "mc-sync-on",
+      name: "mc-sync-on",
+      match: /^\/mc\s+开启同步(?:\s+(.+))?$/,
+      prefixes: ["/"],
+      description: "开启指定服务器的群聊消息同步功能，开启后该服务器可接收和发送群聊消息",
+      usage: "/mc 开启同步 <服务器名称>",
+      permission: "master",
+      async handler({ event, args }) {
+        await handleSync(args[0], true, serverManager, configHandler, config, replyWithEvent(event));
+      },
+    });
+
+    ctx.command({
+      id: "mc-sync-off",
+      name: "mc-sync-off",
+      match: /^\/mc\s+关闭同步(?:\s+(.+))?$/,
+      prefixes: ["/"],
+      description: "关闭指定服务器的群聊消息同步功能，关闭后该服务器不再接收和发送群聊消息",
+      usage: "/mc 关闭同步 <服务器名称>",
+      permission: "master",
+      async handler({ event, args }) {
+        await handleSync(args[0], false, serverManager, configHandler, config, replyWithEvent(event));
+      },
+    });
+
+    ctx.command({
+      id: "mc-reconnect",
+      name: "mc-reconnect",
+      match: /^\/mc\s+重连\s*$/,
+      prefixes: ["/"],
+      permission: "master",
+      description: "断开并重新建立所有服务器的WebSocket连接，用于连接异常时手动恢复",
+      async handler({ event }) {
+        await handleReconnect(serverManager, replyWithEvent(event));
+      },
     });
 
     ctx.logger.info("Minecraft插件加载成功");
@@ -195,10 +198,7 @@ async function forwardToMc(
   const text = ctx.text(event);
   ctx.logger.debug(`[MC] 收到群消息 group=${event.group_id} text=${text}`);
 
-  // 检查是否为群消息
-  if (!event.group_id) {
-    return;
-  }
+  if (!event.group_id) return;
 
   const servers = configHandler.getServersForGroup(event.group_id);
   if (servers.length === 0) return;

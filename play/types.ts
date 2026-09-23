@@ -12,8 +12,8 @@ export interface PlayServerConfig {
 }
 
 export interface GroupBinding {
-  groupId: number;
-  botSelfId: number;
+  groupId: string;
+  botSelfId: string;
   allowedServerIds: string[];
 }
 
@@ -73,8 +73,8 @@ export type MainLoopTrigger =
 export interface PlaySessionStatus {
   serverId: string;
   serverName: string;
-  groupId: number;
-  botSelfId: number;
+  groupId: string;
+  botSelfId: string;
   startedAt: number;
   connected: boolean;
   currentBehavior: string | null;
@@ -182,6 +182,11 @@ function asStringList(value: unknown): string[] {
   return [];
 }
 
+function asId(value: unknown, fallback = ""): string {
+  const text = String(value ?? "").trim();
+  return text.length > 0 ? text : fallback;
+}
+
 function asNumber(value: unknown, fallback: number): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -212,8 +217,8 @@ function normalizeServer(raw: any): PlayServerConfig {
 
 function normalizeBinding(raw: any): GroupBinding {
   return {
-    groupId: asNumber(raw?.groupId ?? raw?.group_id, 0),
-    botSelfId: asNumber(raw?.botSelfId ?? raw?.bot_self_id, 0),
+    groupId: asId(raw?.groupId ?? raw?.group_id),
+    botSelfId: asId(raw?.botSelfId ?? raw?.bot_self_id),
     allowedServerIds: asStringList(raw?.allowedServerIds ?? raw?.allowed_server_ids),
   };
 }
@@ -225,7 +230,7 @@ export function normalizePlayConfig(raw: any): PlayConfig {
   const groups = Array.isArray(raw?.groups)
     ? raw?.groups
         .map(normalizeBinding)
-        .filter((g: GroupBinding) => g.groupId > 0 && g.botSelfId > 0)
+        .filter((g: GroupBinding) => g.groupId.length > 0 && g.botSelfId.length > 0)
     : [];
   const perm: PlayToolPermission =
     raw?.toolPermission === "owner" ||

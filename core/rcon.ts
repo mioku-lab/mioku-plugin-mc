@@ -24,7 +24,7 @@ export function isCommandAllowed(
   text: string,
   serverItem: ServerConfig,
   isMaster: boolean,
-  userId: number | string,
+  userId: string,
 ): boolean {
   if (isMaster) return true;
 

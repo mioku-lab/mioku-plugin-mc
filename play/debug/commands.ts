@@ -5,7 +5,7 @@ export interface DebugCommandContext {
   isMaster: boolean;
   debugEnabled: boolean;
   playManager: PlayManager;
-  groupId: number;
+  groupId: string;
 }
 
 const OVERLAY_NAMES = ["defend", "auto_eat"];

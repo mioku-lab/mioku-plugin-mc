@@ -29,8 +29,8 @@ export function createMcSkill(playManager: PlayManager): AISkill {
         },
         handler: async (args: any, runtimeCtx?: any) => {
           const event = runtimeCtx?.event || runtimeCtx?.rawEvent;
-          const groupId = Number(event?.group_id);
-          if (!Number.isFinite(groupId) || groupId <= 0) {
+          const groupId = String(event?.group_id ?? "").trim();
+          if (!groupId) {
             return { error: "无法识别当前群，请在群聊中调用" };
           }
 

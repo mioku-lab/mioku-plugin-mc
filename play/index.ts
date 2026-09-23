@@ -41,7 +41,7 @@ export class PlayManager {
   private readonly configService: ConfigService | undefined;
   private readonly playConfigHandler: PlayConfigHandler;
   private readonly syncConfigHandler: ConfigHandler;
-  private readonly sessions = new Map<number, PlaySession>();
+  private readonly sessions = new Map<string, PlaySession>();
   private mainInstance?: AIInstance;
   private workInstance?: AIInstance;
 
@@ -100,7 +100,7 @@ export class PlayManager {
   }
 
   async enter(
-    groupId: number,
+    groupId: string,
     serverId: string,
     opts: { debug?: boolean } = {},
   ): Promise<PlayEnterResult> {
@@ -180,7 +180,7 @@ export class PlayManager {
     return { success: true, serverId: server.id, message: `已进入 ${server.name}${mode}` };
   }
 
-  async exit(groupId: number): Promise<PlayExitResult> {
+  async exit(groupId: string): Promise<PlayExitResult> {
     const session = this.sessions.get(groupId);
     if (!session || session.isStopped) {
       return { success: false, message: "当前没有进行中的 mc 会话" };
@@ -191,8 +191,8 @@ export class PlayManager {
   }
 
   onQqMessage(event: any): void {
-    const groupId = Number(event?.group_id);
-    if (!Number.isFinite(groupId) || groupId <= 0) return;
+    const groupId = String(event?.group_id ?? "").trim();
+    if (!groupId) return;
     const session = this.sessions.get(groupId);
     if (!session || session.isStopped) return;
     const text = String(event?.raw_message ?? event?.message ?? "").trim();
@@ -206,7 +206,7 @@ export class PlayManager {
     return [...this.sessions.values()].map((s) => s.getStatus());
   }
 
-  getActiveSession(groupId: number): PlaySession | undefined {
+  getActiveSession(groupId: string): PlaySession | undefined {
     const s = this.sessions.get(groupId);
     return s && !s.isStopped ? s : undefined;
   }
@@ -231,7 +231,7 @@ export function createPlayManager(opts: PlayManagerOptions): PlayManager {
 function detectQqAtBot(
   event: any,
   botName: string,
-  botSelfId: number | undefined,
+  botSelfId: string | undefined,
 ): boolean {
   const lower = String(event?.raw_message ?? event?.message ?? "").toLowerCase();
   if (botName && lower.includes(botName.toLowerCase())) return true;
@@ -239,8 +239,8 @@ function detectQqAtBot(
     for (const segment of event.message) {
       if (!segment || typeof segment !== "object") continue;
       if (segment.type !== "at") continue;
-      const qq = Number(segment.data?.qq ?? 0);
-      if (qq > 0 && qq === botSelfId) return true;
+      const target = String(segment.data?.qq ?? segment.data?.target ?? "").trim();
+      if (target && target === botSelfId) return true;
     }
   }
   return false;

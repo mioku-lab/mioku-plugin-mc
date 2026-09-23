@@ -63,10 +63,7 @@ export default definePlugin({
 
     ctx.handle("message", async (event) => {
       const text = ctx.text(event).trim();
-      const groupId =
-        "group_id" in event && typeof event.group_id === "number"
-          ? event.group_id
-          : undefined;
+      const groupId = String(event.group_id ?? "").trim() || undefined;
 
       if (groupId) {
         const reply = await handleDebugCommand({
@@ -74,7 +71,7 @@ export default definePlugin({
           isMaster: ctx.isMaster?.(event) ?? false,
           debugEnabled: playConfigHandler.getConfig().debug.enabled,
           playManager,
-          groupId: Number(groupId),
+          groupId,
         });
         if (reply !== null) {
           await event.reply(reply);
@@ -95,8 +92,8 @@ export default definePlugin({
     ctx.command({
       id: "mc-status",
       name: "mc-status",
-      match: /^\/mc\s+状态\s*$/,
-      prefixes: ["/"],
+      prefixes: ["/", "."],
+      match: /^mc\s+状态\s*$/,
       permission: "master",
       description: "查看所有已配置服务器的WebSocket连接状态，包括连接中、已断开等",
       async handler({ event }) {
@@ -107,10 +104,10 @@ export default definePlugin({
     ctx.command({
       id: "mc-sync-on",
       name: "mc-sync-on",
-      match: /^\/mc\s+开启同步(?:\s+(.+))?$/,
-      prefixes: ["/"],
+      prefixes: ["/", "."],
+      match: /^mc\s+开启同步(?:\s+(.+))?$/,
       description: "开启指定服务器的群聊消息同步功能，开启后该服务器可接收和发送群聊消息",
-      usage: "/mc 开启同步 <服务器名称>",
+      usage: ".mc 开启同步 <服务器名称>",
       permission: "master",
       async handler({ event, args }) {
         await handleSync(args[0], true, serverManager, configHandler, config, replyWithEvent(event));
@@ -120,10 +117,10 @@ export default definePlugin({
     ctx.command({
       id: "mc-sync-off",
       name: "mc-sync-off",
-      match: /^\/mc\s+关闭同步(?:\s+(.+))?$/,
-      prefixes: ["/"],
+      prefixes: ["/", "."],
+      match: /^mc\s+关闭同步(?:\s+(.+))?$/,
       description: "关闭指定服务器的群聊消息同步功能，关闭后该服务器不再接收和发送群聊消息",
-      usage: "/mc 关闭同步 <服务器名称>",
+      usage: ".mc 关闭同步 <服务器名称>",
       permission: "master",
       async handler({ event, args }) {
         await handleSync(args[0], false, serverManager, configHandler, config, replyWithEvent(event));
@@ -133,8 +130,8 @@ export default definePlugin({
     ctx.command({
       id: "mc-reconnect",
       name: "mc-reconnect",
-      match: /^\/mc\s+重连\s*$/,
-      prefixes: ["/"],
+      prefixes: ["/", "."],
+      match: /^mc\s+重连\s*$/,
       permission: "master",
       description: "断开并重新建立所有服务器的WebSocket连接，用于连接异常时手动恢复",
       async handler({ event }) {
@@ -198,9 +195,10 @@ async function forwardToMc(
   const text = ctx.text(event);
   ctx.logger.debug(`[MC] 收到群消息 group=${event.group_id} text=${text}`);
 
-  if (!event.group_id) return;
+  const groupId = String(event.group_id ?? "").trim();
+  if (!groupId) return;
 
-  const servers = configHandler.getServersForGroup(event.group_id);
+  const servers = configHandler.getServersForGroup(groupId);
   if (servers.length === 0) return;
 
   const msgList = Array.isArray(event.message)

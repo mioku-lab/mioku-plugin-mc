@@ -126,7 +126,7 @@ function describeTerminator(t: WorkTerminator): string {
 export function buildSessionFacts(input: {
   serverName: string;
   username: string;
-  groupId: number;
+  groupId: string;
   maxPlayMs: number;
   allowedCommands: string[];
 }): string {

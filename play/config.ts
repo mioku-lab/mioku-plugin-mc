@@ -27,10 +27,12 @@ export function createPlayConfigHandler(configService: ConfigService | undefined
     return currentConfig.servers.find((s) => s.id === id) ?? null;
   };
 
-  const findBinding = (groupId: number | string): GroupBinding | null => {
-    const gid = Number(groupId);
-    if (!Number.isFinite(gid) || gid <= 0) return null;
-    return currentConfig.groups.find((g) => g.groupId === gid) ?? null;
+  const findBinding = (groupId: string | number): GroupBinding | null => {
+    const gid = String(groupId ?? "").trim();
+    if (!gid) return null;
+    return (
+      currentConfig.groups.find((g) => String(g.groupId) === gid) ?? null
+    );
   };
 
   return { register, getConfig, findServer, findBinding };

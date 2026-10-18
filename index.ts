@@ -9,6 +9,7 @@ import { createServerManager } from "./utils/server-manager";
 import { handleStatus } from "./handlers/status";
 import { handleSync } from "./handlers/sync";
 import { handleReconnect } from "./handlers/reconnect";
+import { handleMotd } from "./handlers/motd";
 import { formatMcEvent, formatQqToMc } from "./utils/message-formatter";
 import {
   parseCommand,
@@ -136,6 +137,19 @@ export default definePlugin({
       description: "断开并重新建立所有服务器的WebSocket连接，用于连接异常时手动恢复",
       async handler({ event }) {
         await handleReconnect(serverManager, replyWithEvent(event));
+      },
+    });
+
+    ctx.command({
+      id: "mc-motd",
+      name: "motd",
+      prefixes: ["/", "."],
+      match: /^motd(?:\s+(.+))?$/,
+      description:
+        "查询指定 Minecraft 服务器的 MOTD、版本与在线人数，并以图片形式返回",
+      usage: "/motd <服务器地址[:端口]>",
+      async handler({ event, args }) {
+        await handleMotd(ctx, event, args[0]);
       },
     });
 
